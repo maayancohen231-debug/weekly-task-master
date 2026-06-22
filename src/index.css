@@ -1,0 +1,77 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 15% 96%;
+    --foreground: 160 10% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 160 10% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 160 10% 15%;
+    --primary: 152 32% 32%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 150 10% 94%;
+    --secondary-foreground: 160 10% 25%;
+    --muted: 150 8% 93%;
+    --muted-foreground: 160 5% 50%;
+    --accent: 152 30% 90%;
+    --accent-foreground: 152 35% 20%;
+    --destructive: 0 55% 52%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 150 8% 90%;
+    --input: 150 8% 92%;
+    --ring: 152 32% 32%;
+    --radius: 0.75rem;
+    --status-green: 152 42% 40%;
+    --status-green-bg: 152 30% 93%;
+    --status-yellow: 40 80% 52%;
+    --status-yellow-bg: 40 65% 94%;
+    --status-red: 0 55% 52%;
+    --status-red-bg: 0 45% 95%;
+    --task-blue: 210 70% 50%;
+    --task-blue-bg: 210 60% 94%;
+    --task-purple: 270 55% 55%;
+    --task-purple-bg: 270 50% 94%;
+    --task-orange: 25 85% 55%;
+    --task-orange-bg: 25 70% 94%;
+    --task-pink: 340 60% 55%;
+    --task-pink-bg: 340 50% 94%;
+    --task-teal: 175 60% 40%;
+    --task-teal-bg: 175 55% 93%;
+    --task-red: 4 72% 54%;
+    --task-red-bg: 4 65% 95%;
+    --task-amber: 38 92% 50%;
+    --task-amber-bg: 38 85% 93%;
+    --task-green: 142 55% 40%;
+    --task-green-bg: 142 50% 93%;
+    --task-indigo: 238 65% 58%;
+    --task-indigo-bg: 238 60% 94%;
+    --task-rose: 352 75% 60%;
+    --task-rose-bg: 352 65% 95%;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.03);
+    --shadow-card: 0 1px 3px rgba(0,0,0,0.03), 0 4px 14px rgba(0,0,0,0.02);
+    --shadow-hover: 0 2px 8px rgba(0,0,0,0.05);
+    --shadow-overlay: 0 8px 24px rgba(0,0,0,0.1);
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer utilities {
+  .shadow-card { box-shadow: var(--shadow-card); }
+  .shadow-hover { box-shadow: var(--shadow-hover); }
+  .shadow-overlay { box-shadow: var(--shadow-overlay); }
+  .shadow-sm-custom { box-shadow: var(--shadow-sm); }
+  .transition-base { transition: all 150ms cubic-bezier(0.2, 0, 0, 1); }
+}
