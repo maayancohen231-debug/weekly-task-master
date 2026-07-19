@@ -659,9 +659,9 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
         <DndContext sensors={sensors} collisionDetection={closestCenter}
           onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
           <div className="w-[220px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2">
+            <LibraryPanel libraryTasks={libraryTasks} onAddLibraryTask={addLibraryTask} onDeleteLibraryTask={deleteLibraryTask} onSetLibraryColor={setLibraryTaskColor} />
             <StatsCard tasks={tasks} progress={progress} />
             <WeeklyGoals goals={goals} tasks={tasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
-            <LibraryPanel libraryTasks={libraryTasks} onAddLibraryTask={addLibraryTask} onDeleteLibraryTask={deleteLibraryTask} onSetLibraryColor={setLibraryTaskColor} />
           </div>
 
           <div className="flex-1 flex gap-2 overflow-x-auto pb-2">
