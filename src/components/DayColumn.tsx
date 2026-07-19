@@ -1,9 +1,10 @@
 import { useState, useRef } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Plus, CalendarPlus, Loader2, X } from 'lucide-react';
+import { Plus, CalendarPlus, Loader2, X, Lock } from 'lucide-react';
 import { TaskItem } from './TaskItem';
 import type { Task, TaskColor } from '@/lib/task-types';
+import type { GCalBusyEvent } from '@/services/googleCalendar';
 
 interface DayColumnProps {
   dayId: string;
@@ -21,12 +22,18 @@ interface DayColumnProps {
   calendarConfigured?: boolean;
   onAddToCalendar?: (id: string) => void;
   syncedTaskIds?: Set<string>;
+  busyEvents?: GCalBusyEvent[];
+}
+
+function formatEventTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 export function DayColumn({
   dayId, label, date, tasks, isToday,
   onDelete, onCycleStatus, onToggleDaily, onSetColor, onSplitTask, onAddInline,
-  onMoveTask, calendarConfigured, onAddToCalendar, syncedTaskIds,
+  onMoveTask, calendarConfigured, onAddToCalendar, syncedTaskIds, busyEvents,
 }: DayColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: dayId });
   const [isEditing, setIsEditing] = useState(false);
@@ -94,6 +101,23 @@ export function DayColumn({
             />
           ))}
         </SortableContext>
+
+        {busyEvents && busyEvents.length > 0 && (
+          <div className="flex flex-col gap-1.5 mt-1">
+            <p className="text-[10px] font-medium text-muted-foreground/40 uppercase tracking-wide px-0.5">From Google Calendar</p>
+            {busyEvents.map(ev => (
+              <div
+                key={ev.id}
+                title={`${ev.calendarName}: ${ev.title}`}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/60 border border-border/40 text-muted-foreground"
+              >
+                <Lock size={11} className="shrink-0 opacity-60" />
+                <span className="text-[11px] leading-relaxed truncate flex-1">{ev.title}</span>
+                <span className="shrink-0 text-[10px] opacity-70">{formatEventTime(ev.start)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {isEditing ? (

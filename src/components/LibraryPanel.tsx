@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, Trash2, GripVertical, Palette } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Palette, Clock } from 'lucide-react';
 import { translateText } from '@/lib/translate';
 import type { LibraryTask, TaskColor } from '@/lib/task-types';
 import { TASK_COLORS } from '@/lib/task-types';
@@ -19,6 +19,8 @@ const colorDotClasses: Record<TaskColor, string> = {
   indigo: 'bg-[hsl(var(--task-indigo))]',
   rose: 'bg-[hsl(var(--task-rose))]',
 };
+
+const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120];
 
 const colorBorderOverrides: Record<TaskColor, string> = {
   none: '',
@@ -66,6 +68,13 @@ function DraggableLibraryItem({
       )}
 
       <span className="flex-1 text-[13px] text-foreground truncate">{task.content}</span>
+
+      {task.startTime && (
+        <span className="shrink-0 flex items-center gap-0.5 text-[10px] text-muted-foreground/60" title={`${task.startTime} · ${task.durationMinutes ?? 30} min`}>
+          <Clock size={10} />
+          {task.startTime}
+        </span>
+      )}
 
       <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-base">
         <div className="relative">
@@ -118,6 +127,16 @@ export function LibraryPanel({ libraryTasks, onAddLibraryTask, onDeleteLibraryTa
   const [isAdding, setIsAdding] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [isTranslating, setIsTranslating] = useState(false);
+  const [timeEnabled, setTimeEnabled] = useState(false);
+  const [startTime, setStartTime] = useState('09:00');
+  const [durationMinutes, setDurationMinutes] = useState(60);
+
+  const resetForm = () => {
+    setInputValue('');
+    setTimeEnabled(false);
+    setStartTime('09:00');
+    setDurationMinutes(60);
+  };
 
   const addTask = async () => {
     if (!inputValue.trim()) return;
@@ -127,8 +146,10 @@ export function LibraryPanel({ libraryTasks, onAddLibraryTask, onDeleteLibraryTa
       id: Math.random().toString(36).substr(2, 9),
       content: translated,
       originalText: /[\u0590-\u05FF]/.test(inputValue) ? inputValue : undefined,
+      startTime: timeEnabled ? startTime : undefined,
+      durationMinutes: timeEnabled ? durationMinutes : undefined,
     });
-    setInputValue('');
+    resetForm();
     setIsTranslating(false);
     setIsAdding(false);
   };
@@ -153,11 +174,41 @@ export function LibraryPanel({ libraryTasks, onAddLibraryTask, onDeleteLibraryTa
             value={inputValue}
             dir="auto"
             onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addTask()}
+            onKeyDown={(e) => e.key === 'Enter' && !timeEnabled && addTask()}
             placeholder="Task name..."
             autoFocus
             className="w-full px-3 py-2 bg-muted border-none rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/40"
           />
+
+          <button
+            type="button"
+            onClick={() => setTimeEnabled(v => !v)}
+            className={`flex items-center gap-1 mt-1.5 text-[11px] font-medium transition-base ${timeEnabled ? 'text-primary' : 'text-muted-foreground/50 hover:text-muted-foreground'}`}
+          >
+            <Clock size={11} />
+            {timeEnabled ? 'Remove time' : 'Add a time'}
+          </button>
+
+          {timeEnabled && (
+            <div className="flex items-center gap-1.5 mt-1.5">
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="flex-1 px-2 py-1.5 bg-muted border-none rounded-lg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <select
+                value={durationMinutes}
+                onChange={(e) => setDurationMinutes(Number(e.target.value))}
+                className="px-2 py-1.5 bg-muted border-none rounded-lg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                {DURATION_OPTIONS.map(min => (
+                  <option key={min} value={min}>{min} min</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="flex gap-1.5 mt-1.5">
             <button
               onClick={addTask}
@@ -167,7 +218,7 @@ export function LibraryPanel({ libraryTasks, onAddLibraryTask, onDeleteLibraryTa
               {isTranslating ? 'Translating...' : 'Add'}
             </button>
             <button
-              onClick={() => { setIsAdding(false); setInputValue(''); }}
+              onClick={() => { setIsAdding(false); resetForm(); }}
               className="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground rounded-md transition-base"
             >
               Cancel

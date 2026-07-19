@@ -19,6 +19,9 @@ export interface Task {
   isDaily: boolean;
   dailyStatuses?: Record<string, TaskStatus>;
   sortOrder: number;
+  startTime?: string; // "HH:mm", 24h
+  durationMinutes?: number;
+  calendarId?: string;
 }
 
 export interface LibraryTask {
@@ -26,6 +29,9 @@ export interface LibraryTask {
   content: string;
   originalText?: string;
   color?: TaskColor;
+  startTime?: string; // "HH:mm", 24h
+  durationMinutes?: number;
+  calendarId?: string; // remembered calendar for repeat drags of this template
 }
 
 export const TASK_COLORS: { id: TaskColor; label: string }[] = [
@@ -41,6 +47,8 @@ export const TASK_COLORS: { id: TaskColor; label: string }[] = [
   { id: 'green', label: 'Green' },
   { id: 'teal', label: 'Teal' },
 ];
+
+export const DAY_INDEX_TO_ID: Record<number, string> = { 0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu' };
 
 export function nextStatus(status: TaskStatus): TaskStatus {
   const cycle: TaskStatus[] = ['none', 'green', 'yellow', 'red'];
@@ -79,4 +87,24 @@ export function getWeekRange(weekStart: Date): string {
   const s = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const e = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   return `${s} – ${e}`;
+}
+
+/** Combine a week's Sunday, a day offset, and an "HH:mm" time into a local "YYYY-MM-DDTHH:mm" string. */
+export function formatLocalDateTime(weekStart: Date, dayIndex: number, time: string): string {
+  const d = new Date(weekStart);
+  d.setDate(d.getDate() + dayIndex);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}T${time}`;
+}
+
+/** Map a real Date to a day id (sun..thu) within the given week, or null if outside the visible range. */
+export function getDayIdForDate(date: Date, weekStart: Date): string | null {
+  const start = new Date(weekStart);
+  start.setHours(0, 0, 0, 0);
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((d.getTime() - start.getTime()) / 86_400_000);
+  return DAY_INDEX_TO_ID[diffDays] ?? null;
 }

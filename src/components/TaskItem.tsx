@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Trash2, CheckCircle2, Repeat, Palette, Scissors, CalendarPlus, ChevronUp, ChevronDown } from 'lucide-react';
+import { GripVertical, Trash2, CheckCircle2, Repeat, Palette, Scissors, CalendarPlus, ChevronUp, ChevronDown, Clock } from 'lucide-react';
 import { useState } from 'react';
 import type { Task, TaskStatus, TaskColor } from '@/lib/task-types';
 import { TASK_COLORS } from '@/lib/task-types';
@@ -111,6 +111,12 @@ export function TaskItem({
         <p className={`flex-1 text-[11px] leading-relaxed break-words ${task.status === 'green' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
           {task.content}
         </p>
+        {task.startTime && (
+          <span className="shrink-0 flex items-center gap-0.5 text-[10px] text-muted-foreground/60" title={`${task.startTime} · ${task.durationMinutes ?? 30} min`}>
+            <Clock size={10} />
+            {task.startTime}
+          </span>
+        )}
       </div>
 
       <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-base">

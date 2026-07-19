@@ -1,18 +1,20 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
   useSensor, useSensors, DragOverlay, DragEndEvent, DragStartEvent,
   defaultDropAnimationSideEffects, DragOverEvent,
 } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, CalendarPlus, ListTodo } from 'lucide-react';
+import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, CalendarPlus, ListTodo, RefreshCw } from 'lucide-react';
 import { AcademicBoard } from '@/components/AcademicBoard';
 import { ListsPage } from '@/components/ListsPage';
 import { CalendarEventModal } from '@/components/CalendarEventModal';
+import { CalendarPickerPopup } from '@/components/CalendarPickerPopup';
 import { forceSeedData } from '@/lib/seed';
 import {
   isConfigured, isTokenValid, requestToken, clearToken,
-  loadSyncedEvents, type SyncedEventInfo,
+  loadSyncedEvents, createCalendarEvent, saveSyncedEvent, fetchWeekEvents,
+  type SyncedEventInfo, type GCalBusyEvent,
 } from '@/services/googleCalendar';
 import { DayColumn } from '@/components/DayColumn';
 import { StatsCard } from '@/components/StatsCard';
@@ -21,7 +23,8 @@ import { TaskItem } from '@/components/TaskItem';
 import { WeeklyGoals, type WeeklyGoal } from '@/components/WeeklyGoals';
 import { translateText } from '@/lib/translate';
 import {
-  DAYS, getWeekSunday, getWeekKey, formatDayDate, getMonthYear, getWeekRange, nextStatus,
+  DAYS, DAY_INDEX_TO_ID, getWeekSunday, getWeekKey, formatDayDate, getMonthYear, getWeekRange, nextStatus,
+  formatLocalDateTime, getDayIdForDate,
 } from '@/lib/task-types';
 import type { Task, LibraryTask, TaskColor } from '@/lib/task-types';
 
@@ -140,8 +143,7 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
   const todayDayId = useMemo(() => {
     if (!isCurrentWeek) return null;
     const dayIndex = new Date().getDay();
-    const dayMap: Record<number, string> = { 0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu' };
-    return dayMap[dayIndex] ?? null;
+    return DAY_INDEX_TO_ID[dayIndex] ?? null;
   }, [isCurrentWeek]);
 
   const [storageData, setStorageData] = useState<StorageData>(loadStorage);
@@ -155,6 +157,10 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
   const [calendarModalTaskId, setCalendarModalTaskId] = useState<string | null>(null);
   const [syncedEvents, setSyncedEvents] = useState<Record<string, SyncedEventInfo>>(() => loadSyncedEvents());
   const syncedTaskIds = useMemo(() => new Set(Object.keys(syncedEvents)), [syncedEvents]);
+  const [pendingCalendarPick, setPendingCalendarPick] = useState<{ taskId: string; libId: string; content: string } | null>(null);
+  const [busyEventsByDay, setBusyEventsByDay] = useState<Record<string, GCalBusyEvent[]>>({});
+  const [isSyncingCalendar, setIsSyncingCalendar] = useState(false);
+  const [syncSummary, setSyncSummary] = useState<string | null>(null);
 
   // Silent token refresh — only if a token already exists (even expired)
   useEffect(() => {
@@ -197,6 +203,34 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
   const handleCalendarSynced = useCallback((taskId: string, info: SyncedEventInfo) => {
     setSyncedEvents(prev => ({ ...prev, [taskId]: info }));
   }, []);
+
+  // Pull existing Google Calendar events for the visible week, bucketed by day.
+  const busyFetchRef = useRef(0);
+  useEffect(() => {
+    if (!gcalConnected) { setBusyEventsByDay({}); return; }
+    const requestId = ++busyFetchRef.current;
+    const load = async () => {
+      try {
+        const rangeStart = new Date(weekStart);
+        const rangeEnd = new Date(weekStart);
+        rangeEnd.setDate(rangeEnd.getDate() + 5); // covers sun..thu
+        const events = await fetchWeekEvents(rangeStart.toISOString(), rangeEnd.toISOString());
+        if (busyFetchRef.current !== requestId) return; // stale response, a newer week was requested
+        const byDay: Record<string, GCalBusyEvent[]> = {};
+        for (const ev of events) {
+          const dayId = getDayIdForDate(new Date(ev.start), weekStart);
+          if (!dayId) continue;
+          (byDay[dayId] ??= []).push(ev);
+        }
+        setBusyEventsByDay(byDay);
+      } catch (err) {
+        if (busyFetchRef.current !== requestId) return;
+        console.warn('[App] failed to fetch busy events:', err);
+        setBusyEventsByDay({});
+      }
+    };
+    load();
+  }, [weekKey, gcalConnected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tasks = useMemo(() => storageData.tasksByWeek[weekKey] ?? [], [storageData, weekKey]);
   const calendarModalTask = useMemo(() => {
@@ -436,7 +470,18 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
     const lib = libraryTasks.find(lt => lt.id === aid);
     if (lib) {
       const dayId = (DAY_IDS as string[]).includes(oid) ? oid : (tasks.find(t => t.id === getRealId(oid))?.dayId ?? null);
-      if (dayId) setTasks(prev => [...prev, { id: genId(), content: lib.content, originalText: lib.originalText, status: 'none', color: 'none', dayId, isDaily: false, sortOrder: prev.filter(t => t.dayId === dayId).length }]);
+      if (dayId) {
+        const newId = genId();
+        setTasks(prev => [...prev, {
+          id: newId, content: lib.content, originalText: lib.originalText,
+          status: 'none', color: 'none', dayId, isDaily: false,
+          sortOrder: prev.filter(t => t.dayId === dayId).length,
+          startTime: lib.startTime, durationMinutes: lib.durationMinutes, calendarId: lib.calendarId,
+        }]);
+        if (lib.startTime && !lib.calendarId) {
+          setPendingCalendarPick({ taskId: newId, libId: lib.id, content: lib.content });
+        }
+      }
       return;
     }
     if (active.id !== over.id && !(DAY_IDS as string[]).includes(oid)) {
@@ -448,6 +493,44 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
       });
     }
   }, [libraryTasks, tasks, setTasks]);
+
+  const handleAssignCalendar = useCallback((calendarId: string) => {
+    if (!pendingCalendarPick) return;
+    const { taskId, libId } = pendingCalendarPick;
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, calendarId } : t));
+    setLibraryTasks(prev => prev.map(t => t.id === libId ? { ...t, calendarId } : t));
+    setPendingCalendarPick(null);
+  }, [pendingCalendarPick, setTasks, setLibraryTasks]);
+
+  const handleCancelCalendarPick = useCallback(() => setPendingCalendarPick(null), []);
+
+  const handleSyncToCalendar = useCallback(async () => {
+    const toSync = tasks.filter(t => !t.isDaily && t.startTime && t.calendarId && !syncedTaskIds.has(t.id));
+    if (toSync.length === 0) { setSyncSummary('No scheduled tasks to sync'); return; }
+    setIsSyncingCalendar(true);
+    setSyncSummary(null);
+    let succeeded = 0, failed = 0;
+    for (const t of toSync) {
+      try {
+        const dayIndex = DAYS.findIndex(d => d.id === t.dayId);
+        const startDateTime = formatLocalDateTime(weekStart, dayIndex, t.startTime!);
+        const event = await createCalendarEvent(t.calendarId!, t.content, startDateTime, '', t.durationMinutes ?? 30);
+        const info: SyncedEventInfo = {
+          eventId: event.id, calendarId: t.calendarId!, calendarName: '',
+          htmlLink: event.htmlLink, syncedAt: new Date().toISOString(),
+        };
+        saveSyncedEvent(t.id, info);
+        setSyncedEvents(prev => ({ ...prev, [t.id]: info }));
+        succeeded++;
+      } catch (err) {
+        console.error('[App] failed to sync task to calendar:', t.id, err);
+        failed++;
+      }
+    }
+    setIsSyncingCalendar(false);
+    setSyncSummary(failed > 0 ? `Synced ${succeeded}, ${failed} failed` : `Synced ${succeeded} task${succeeded === 1 ? '' : 's'}`);
+    setTimeout(() => setSyncSummary(null), 4000);
+  }, [tasks, syncedTaskIds, weekStart]);
 
   const activeTask = useMemo(() => {
     if (!activeId) return null;
@@ -498,14 +581,25 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
             </button>
             {isConfigured() ? (
               gcalConnected ? (
-                <button
-                  onClick={handleDisconnectCalendar}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[hsl(var(--status-green))] bg-[hsl(var(--status-green-bg))] hover:bg-[hsl(var(--status-red-bg))] hover:text-destructive rounded-xl transition-base"
-                  title="Disconnect Google Calendar"
-                >
-                  <Unlink size={14} />
-                  <span>Calendar</span>
-                </button>
+                <>
+                  <button
+                    onClick={handleSyncToCalendar}
+                    disabled={isSyncingCalendar}
+                    title={syncSummary ?? 'Push scheduled tasks to Google Calendar'}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-base disabled:opacity-50"
+                  >
+                    <RefreshCw size={14} className={isSyncingCalendar ? 'animate-spin' : ''} />
+                    <span>{syncSummary ?? 'Sync to Calendar'}</span>
+                  </button>
+                  <button
+                    onClick={handleDisconnectCalendar}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[hsl(var(--status-green))] bg-[hsl(var(--status-green-bg))] hover:bg-[hsl(var(--status-red-bg))] hover:text-destructive rounded-xl transition-base"
+                    title="Disconnect Google Calendar"
+                  >
+                    <Unlink size={14} />
+                    <span>Calendar</span>
+                  </button>
+                </>
               ) : (
                 <button
                   onClick={handleConnectCalendar}
@@ -581,6 +675,7 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
                 calendarConfigured={isConfigured() && gcalConnected}
                 onAddToCalendar={isConfigured() ? handleAddToCalendar : undefined}
                 syncedTaskIds={syncedTaskIds}
+                busyEvents={busyEventsByDay[day.id]}
               />
             ))}
           </div>
@@ -600,6 +695,14 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
             handleCalendarSynced(taskId, info);
             setCalendarModalTaskId(null);
           }}
+        />
+      )}
+
+      {pendingCalendarPick && (
+        <CalendarPickerPopup
+          taskContent={pendingCalendarPick.content}
+          onAssign={handleAssignCalendar}
+          onCancel={handleCancelCalendarPick}
         />
       )}
     </div>

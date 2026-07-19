@@ -27,6 +27,17 @@ export interface GCalCalendar {
   summary: string;
   backgroundColor?: string;
   primary?: boolean;
+  selected?: boolean;
+}
+
+export interface GCalBusyEvent {
+  id: string;
+  title: string;
+  start: string; // ISO datetime
+  end: string; // ISO datetime
+  calendarId: string;
+  calendarName: string;
+  calendarColor?: string;
 }
 
 export interface GCalEventResult {
@@ -206,16 +217,55 @@ export async function fetchCalendars(): Promise<GCalCalendar[]> {
   return (data.items ?? []) as GCalCalendar[];
 }
 
-/** Create a 30-minute event on the given calendar. */
+/** Fetch existing events across the user's visible calendars within a time range. */
+export async function fetchWeekEvents(timeMinISO: string, timeMaxISO: string): Promise<GCalBusyEvent[]> {
+  const calendars = (await fetchCalendars()).filter(c => c.selected !== false);
+
+  const results = await Promise.allSettled(
+    calendars.map(async (cal) => {
+      const params = new URLSearchParams({
+        timeMin: timeMinISO,
+        timeMax: timeMaxISO,
+        singleEvents: 'true',
+        orderBy: 'startTime',
+        maxResults: '50',
+      });
+      const res = await gcalFetch(`/calendars/${encodeURIComponent(cal.id)}/events?${params}`);
+      const data = await res.json();
+      const items = (data.items ?? []) as Array<{ id: string; summary?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string } }>;
+      return items
+        .filter(ev => ev.start?.dateTime && ev.end?.dateTime) // skip all-day events
+        .map((ev): GCalBusyEvent => ({
+          id: ev.id,
+          title: ev.summary ?? '(No title)',
+          start: ev.start!.dateTime!,
+          end: ev.end!.dateTime!,
+          calendarId: cal.id,
+          calendarName: cal.summary,
+          calendarColor: cal.backgroundColor,
+        }));
+    })
+  );
+
+  const events: GCalBusyEvent[] = [];
+  for (const r of results) {
+    if (r.status === 'fulfilled') events.push(...r.value);
+    else console.warn('[googleCalendar] failed to fetch events for a calendar:', r.reason);
+  }
+  return events;
+}
+
+/** Create an event on the given calendar (defaults to 30 minutes). */
 export async function createCalendarEvent(
   calendarId: string,
   title: string,
   startDateTime: string, // ISO local datetime e.g. "2026-03-22T10:00"
   description = '',
+  durationMinutes = 30,
 ): Promise<{ id: string; htmlLink: string }> {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const start = new Date(startDateTime);
-  const end = new Date(start.getTime() + 30 * 60 * 1000);
+  const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
 
   const body = {
     summary: title,
