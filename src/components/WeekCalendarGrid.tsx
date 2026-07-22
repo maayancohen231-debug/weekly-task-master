@@ -4,7 +4,7 @@ import type { Task, TaskColor } from '@/lib/task-types';
 import type { GCalBusyEvent } from '@/services/googleCalendar';
 import {
   GRID_START_HOUR, GRID_END_HOUR, GRID_HOURS, SLOT_MINUTES, PX_PER_MINUTE, SLOT_TIMES,
-  minutesFromGridStart, slotId, layoutOverlaps, clampToGridPx,
+  minutesFromGridStart, slotId, layoutOverlaps, clampToGridPx, cascadePosition,
 } from '@/lib/calendar-grid';
 import { CalendarTaskBlock } from './CalendarTaskBlock';
 import { GCalBusyBlock } from './GCalBusyBlock';
@@ -61,9 +61,9 @@ export function WeekCalendarGrid({
   const nowTop = useMemo(nowIndicatorTop, []);
 
   return (
-    <div className="flex-1 flex bg-card rounded-2xl shadow-card overflow-hidden min-w-0">
+    <div className="flex-1 flex bg-card rounded-2xl shadow-card overflow-hidden min-w-0 min-h-0">
       <div className="flex-1 overflow-y-auto overflow-x-auto">
-        <div className="flex min-w-[600px]">
+        <div className="flex min-w-[600px] gap-2 px-1.5">
           {/* Hour axis gutter */}
           <div className="w-12 shrink-0 sticky left-0 bg-card z-10">
             <div className="h-[52px] border-b border-border/50" />
@@ -111,8 +111,8 @@ export function WeekCalendarGrid({
             const layout = layoutOverlaps(intervals);
 
             return (
-              <div key={day.id} className="flex-1 min-w-[110px] border-l border-border/50">
-                <div className={`h-[52px] flex flex-col items-center justify-center border-b border-border/50 ${isToday ? 'bg-primary/5' : ''}`}>
+              <div key={day.id} className="flex-1 min-w-[110px] rounded-xl border border-border/40">
+                <div className={`h-[52px] flex flex-col items-center justify-center border-b border-border/40 rounded-t-xl ${isToday ? 'bg-primary/5' : ''}`}>
                   <div className="flex items-center gap-1.5">
                     <p className="text-[13px] font-bold text-foreground">{day.label}</p>
                     {isToday && <span className="w-1.5 h-1.5 rounded-full bg-foreground" />}
@@ -132,8 +132,7 @@ export function WeekCalendarGrid({
 
                   {busy.map(ev => {
                     const l = layout.get(`busy_${ev.id}`);
-                    const totalCols = l?.totalCols ?? 1;
-                    const col = l?.col ?? 0;
+                    const { leftPct, widthPct, z } = cascadePosition(l?.col ?? 0, l?.totalCols ?? 1);
                     const r = busyRanges.get(ev.id)!;
                     const { top, height } = clampToGridPx(r.startMin, r.endMin);
                     return (
@@ -142,16 +141,16 @@ export function WeekCalendarGrid({
                         event={ev}
                         top={top}
                         height={height}
-                        left={`${(col / totalCols) * 100}%`}
-                        width={`${(1 / totalCols) * 100}%`}
+                        left={`${leftPct}%`}
+                        width={`${widthPct}%`}
+                        zIndex={z}
                       />
                     );
                   })}
 
                   {tasks.map(task => {
                     const l = layout.get(task.id);
-                    const totalCols = l?.totalCols ?? 1;
-                    const col = l?.col ?? 0;
+                    const { leftPct, widthPct, z } = cascadePosition(l?.col ?? 0, l?.totalCols ?? 1);
                     const duration = task.durationMinutes ?? 30;
                     const startMin = minutesFromGridStart(task.startTime!);
                     const { top, height } = clampToGridPx(startMin, startMin + duration);
@@ -161,8 +160,9 @@ export function WeekCalendarGrid({
                         task={task}
                         top={top}
                         height={height}
-                        left={`${(col / totalCols) * 100}%`}
-                        width={`${(1 / totalCols) * 100}%`}
+                        left={`${leftPct}%`}
+                        width={`${widthPct}%`}
+                        zIndex={10 + z}
                         onDelete={onDelete}
                         onCycleStatus={onCycleStatus}
                         onSetColor={onSetColor}

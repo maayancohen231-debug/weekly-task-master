@@ -7,6 +7,7 @@ interface GCalBusyBlockProps {
   height: number;
   left: string;
   width: string;
+  zIndex?: number;
 }
 
 function formatEventTime(iso: string): string {
@@ -23,18 +24,18 @@ function hexToRgba(hex: string | undefined, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-export function GCalBusyBlock({ event, top, height, left, width }: GCalBusyBlockProps) {
+export function GCalBusyBlock({ event, top, height, left, width, zIndex = 5 }: GCalBusyBlockProps) {
   const compact = height < 40;
   const color = event.calendarColor;
   return (
     <div
       title={`${event.calendarName}: ${event.title}`}
       style={{
-        position: 'absolute', top, height, left, width,
-        backgroundColor: hexToRgba(color, 0.16),
+        position: 'absolute', top, height, left, width, zIndex,
+        backgroundColor: hexToRgba(color, 0.85),
         borderLeft: `3px solid ${color ?? 'rgba(120,120,120,0.6)'}`,
       }}
-      className="rounded-lg border border-border/40 px-2 py-1 overflow-hidden"
+      className="rounded-lg border border-border/40 px-2 py-1 overflow-hidden shadow-sm-custom"
     >
       <div className="flex items-center gap-1 min-w-0">
         <Lock size={9} className="shrink-0 opacity-50 text-foreground" />

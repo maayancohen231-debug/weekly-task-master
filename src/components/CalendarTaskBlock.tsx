@@ -17,10 +17,11 @@ interface CalendarTaskBlockProps {
   onSetColor: (id: string, color: TaskColor) => void;
   isSynced?: boolean;
   isOverlay?: boolean;
+  zIndex?: number;
 }
 
 export function CalendarTaskBlock({
-  task, top, height, left, width, onDelete, onCycleStatus, onSetColor, isSynced = false, isOverlay = false,
+  task, top, height, left, width, onDelete, onCycleStatus, onSetColor, isSynced = false, isOverlay = false, zIndex = 5,
 }: CalendarTaskBlockProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id });
@@ -34,7 +35,7 @@ export function CalendarTaskBlock({
       top, height, left, width,
       transform: transform ? CSS.Translate.toString(transform) : undefined,
       opacity: isDragging ? 0.35 : 1,
-      zIndex: isDragging ? 20 : 5,
+      zIndex: isDragging ? 100 : zIndex,
     };
 
   return (
@@ -45,7 +46,7 @@ export function CalendarTaskBlock({
       {...listeners}
       onClick={() => onCycleStatus(task.id)}
       className={`group ${isOverlay ? '' : 'absolute'} rounded-lg border px-2 py-1 cursor-grab active:cursor-grabbing transition-base ${statusClasses[task.status]} ${statusBorderClasses[task.status]} ${colorBorderOverrides[taskColor]} ${
-        isOverlay ? 'shadow-overlay scale-[1.02]' : 'shadow-sm-custom hover:shadow-hover hover:z-10'
+        isOverlay ? 'shadow-overlay scale-[1.02]' : 'shadow-sm-custom hover:shadow-hover'
       }`}
     >
       <div className="overflow-hidden">

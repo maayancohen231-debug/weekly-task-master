@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
-  DndContext, closestCenter, KeyboardSensor, PointerSensor,
+  DndContext, pointerWithin, KeyboardSensor, PointerSensor,
   useSensor, useSensors, DragOverlay, DragEndEvent, DragStartEvent,
   defaultDropAnimationSideEffects,
 } from '@dnd-kit/core';
@@ -554,7 +554,7 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
   const activeLib = activeId ? libraryTasks.find(lt => lt.id === activeId) : null;
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-sans flex flex-col">
+    <div className="h-screen bg-background text-foreground font-sans flex flex-col overflow-hidden">
       <div className="h-1 w-full shrink-0" style={{ background: 'hsl(340 60% 80%)' }} />
 
       <header className="bg-card shadow-card px-6 py-3 shrink-0">
@@ -628,7 +628,7 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
       </header>
 
       <main className="flex-1 px-4 pt-4 pb-4 flex gap-3 min-h-0 overflow-hidden">
-        <DndContext sensors={sensors} collisionDetection={closestCenter}
+        <DndContext sensors={sensors} collisionDetection={pointerWithin}
           onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2">
             <TaskBankSidebar

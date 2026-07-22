@@ -61,6 +61,22 @@ export interface OverlapLayout {
   totalCols: number;
 }
 
+const CASCADE_STEP_PCT = 14;
+const CASCADE_MIN_WIDTH_PCT = 42;
+
+/**
+ * Turns a column index / column count from layoutOverlaps into a cascading
+ * on-screen position — each overlapping item stays wide and readable and is
+ * offset + layered over the previous one, the way Google Calendar renders
+ * concurrent events, instead of squeezing every item into an equal 1/N sliver.
+ */
+export function cascadePosition(col: number, totalCols: number): { leftPct: number; widthPct: number; z: number } {
+  if (totalCols <= 1) return { leftPct: 0, widthPct: 100, z: 5 };
+  const widthPct = Math.max(CASCADE_MIN_WIDTH_PCT, 100 - (totalCols - 1) * CASCADE_STEP_PCT);
+  const leftPct = Math.min(col * CASCADE_STEP_PCT, 100 - widthPct);
+  return { leftPct, widthPct, z: 5 + col };
+}
+
 const GRID_TOTAL_MINUTES = (GRID_END_HOUR - GRID_START_HOUR) * 60;
 
 /**
