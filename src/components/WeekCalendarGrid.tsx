@@ -62,7 +62,7 @@ export function WeekCalendarGrid({
 
   return (
     <div className="flex-1 flex bg-card rounded-2xl shadow-card overflow-hidden min-w-0 min-h-0">
-      <div className="flex-1 overflow-y-auto overflow-x-auto">
+      <div className="flex-1 overflow-y-auto overflow-x-auto scroll-thin">
         <div className="flex min-w-[600px] gap-2 px-1.5">
           {/* Hour axis gutter */}
           <div className="w-12 shrink-0 sticky left-0 bg-card z-10">

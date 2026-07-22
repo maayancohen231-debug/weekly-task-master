@@ -146,7 +146,7 @@ export function DayListView({
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter}
       onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
-      <div className="flex-1 flex gap-2 overflow-x-auto pb-2 min-h-0">
+      <div className="flex-1 flex gap-2 overflow-x-auto pb-2 min-h-0 scroll-thin">
         {DAYS.map((day, i) => (
           <DayColumn key={day.id} dayId={day.id} label={day.label}
             date={formatDayDate(weekStart, i)} tasks={tasksByDay[day.id]}

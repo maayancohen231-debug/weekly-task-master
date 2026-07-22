@@ -640,7 +640,7 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
         {plannerView === 'calendar' ? (
           <DndContext sensors={sensors} collisionDetection={pointerWithin}
             onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-            <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2">
+            <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2 scroll-thin">
               <TaskBankSidebar
                 tasks={bankTasks}
                 onAddTask={addUnscheduledTask}
@@ -688,7 +688,7 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
           </DndContext>
         ) : (
           <>
-            <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2">
+            <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2 scroll-thin">
               <LibraryPanel libraryTasks={libraryTasks} onAddLibraryTask={addLibraryTask} onDeleteLibraryTask={deleteLibraryTask} onSetLibraryColor={setLibraryTaskColor} />
               <StatsCard tasks={tasks} progress={progress} />
               <WeeklyGoals goals={goals} tasks={tasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />

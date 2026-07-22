@@ -70,7 +70,7 @@ export function DayColumn({
         <p className="text-xs text-muted-foreground mt-0.5">{date}</p>
       </div>
 
-      <div className="flex-1 px-3 pb-2 flex flex-col gap-2 min-h-[240px] overflow-y-auto">
+      <div className="flex-1 px-3 pb-2 flex flex-col gap-2 min-h-[240px] overflow-y-auto scroll-thin">
         <SortableContext items={tasks} strategy={verticalListSortingStrategy}>
           {tasks.map((task) => (
             <TaskItem

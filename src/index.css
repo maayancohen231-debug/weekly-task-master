@@ -74,4 +74,23 @@
   .shadow-overlay { box-shadow: var(--shadow-overlay); }
   .shadow-sm-custom { box-shadow: var(--shadow-sm); }
   .transition-base { transition: all 150ms cubic-bezier(0.2, 0, 0, 1); }
+
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  .scroll-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scroll-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 9999px;
+  }
+  .scroll-thin:hover::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.25);
+  }
 }

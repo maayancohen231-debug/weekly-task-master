@@ -181,7 +181,7 @@ export function TaskBankSidebar({
         </div>
       )}
 
-      <div className="flex flex-col gap-2 min-h-[60px] max-h-[320px] overflow-y-auto">
+      <div className="flex flex-col gap-2 min-h-[60px] max-h-[320px] overflow-y-auto scroll-thin">
         {tasks.map(task => (
           <BankItem
             key={task.id}
