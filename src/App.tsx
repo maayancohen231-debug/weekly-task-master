@@ -5,7 +5,7 @@ import {
   defaultDropAnimationSideEffects,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, ListTodo } from 'lucide-react';
+import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, ListTodo, LayoutList, CalendarRange } from 'lucide-react';
 import { AcademicBoard } from '@/components/AcademicBoard';
 import { ListsPage } from '@/components/ListsPage';
 import { forceSeedData } from '@/lib/seed';
@@ -22,6 +22,7 @@ import { StatsCard } from '@/components/StatsCard';
 import { LibraryPanel } from '@/components/LibraryPanel';
 import { WeeklyGoals, type WeeklyGoal } from '@/components/WeeklyGoals';
 import { DailyGoalsBar } from '@/components/DailyGoalsBar';
+import { DayListView } from '@/components/DayListView';
 import { translateText } from '@/lib/translate';
 import { parseSlotId, BANK_ID } from '@/lib/calendar-grid';
 import {
@@ -152,6 +153,7 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
 
   const [storageData, setStorageData] = useState<StorageData>(loadStorage);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [plannerView, setPlannerView] = useState<'calendar' | 'list'>('calendar');
 
   // Google Calendar state
   const [gcalConnected, setGcalConnected] = useState(() => isTokenValid());
@@ -447,7 +449,7 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
     const newTasks: Task[] = Array.from({ length: count }, (_, i) => ({
       id: genId(), content: `${task.content} (${i + 1}/${count})`,
       status: 'none' as const, color: task.color,
-      dayId: DAY_IDS[0], isDaily: false, sortOrder: i,
+      dayId: DAYS[i % DAYS.length]?.id ?? task.dayId, isDaily: false, sortOrder: i,
     }));
     setTasks(prev => [...prev.filter(t => t.id !== realId), ...newTasks]);
   }, [tasks, setTasks, removeSyncedEvents]);
@@ -610,6 +612,13 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
               )
             ) : null}
             <button
+              onClick={() => setPlannerView(v => v === 'calendar' ? 'list' : 'calendar')}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-base"
+            >
+              {plannerView === 'calendar' ? <LayoutList size={14} /> : <CalendarRange size={14} />}
+              <span>{plannerView === 'calendar' ? 'תצוגת רשימה' : 'תצוגת יומן'}</span>
+            </button>
+            <button
               onClick={onNavigateLists}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-base"
             >
@@ -628,54 +637,75 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
       </header>
 
       <main className="flex-1 px-4 pt-4 pb-4 flex gap-3 min-h-0 overflow-hidden">
-        <DndContext sensors={sensors} collisionDetection={pointerWithin}
-          onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2">
-            <TaskBankSidebar
-              tasks={bankTasks}
-              onAddTask={addUnscheduledTask}
+        {plannerView === 'calendar' ? (
+          <DndContext sensors={sensors} collisionDetection={pointerWithin}
+            onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+            <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2">
+              <TaskBankSidebar
+                tasks={bankTasks}
+                onAddTask={addUnscheduledTask}
+                onDelete={deleteTask}
+                onCycleStatus={cycleStatus}
+                onToggleDaily={toggleDaily}
+                onSetColor={setTaskColor}
+                onSplitTask={splitTask}
+              />
+              <LibraryPanel libraryTasks={libraryTasks} onAddLibraryTask={addLibraryTask} onDeleteLibraryTask={deleteLibraryTask} onSetLibraryColor={setLibraryTaskColor} />
+              <StatsCard tasks={tasks} progress={progress} />
+              <WeeklyGoals goals={goals} tasks={tasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
+            </div>
+
+            <div className="flex-1 flex flex-col gap-3 min-h-0 min-w-0">
+              <DailyGoalsBar
+                days={DAYS.map((d, i) => ({ id: d.id, label: d.label, date: formatDayDate(weekStart, i) }))}
+                goals={dailyGoals}
+                onAddGoal={addDailyGoal}
+                onToggleGoalDay={toggleDailyGoalDay}
+                onDeleteGoal={deleteDailyGoal}
+              />
+              <WeekCalendarGrid
+                days={DAYS.map((d, i) => ({ id: d.id, label: d.label, date: formatDayDate(weekStart, i) }))}
+                todayDayId={todayDayId}
+                scheduledTasksByDay={scheduledTasksByDay}
+                busyEventsByDay={busyEventsByDay}
+                syncedTaskIds={syncedTaskIds}
+                onDelete={deleteTask}
+                onCycleStatus={cycleStatus}
+                onSetColor={setTaskColor}
+              />
+            </div>
+
+            <DragOverlay dropAnimation={{ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.5' } } }) }}>
+              {activeTask ? (
+                <CalendarTaskBlock
+                  task={activeTask} top={0} height={36} left="0" width="100%"
+                  onDelete={deleteTask} onCycleStatus={cycleStatus} onSetColor={setTaskColor}
+                  isOverlay
+                />
+              ) : null}
+              {activeLib ? <div className="px-4 py-2.5 bg-card rounded-xl shadow-overlay border border-primary/20 text-[13px] font-medium text-foreground">{activeLib.content}</div> : null}
+            </DragOverlay>
+          </DndContext>
+        ) : (
+          <>
+            <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2">
+              <LibraryPanel libraryTasks={libraryTasks} onAddLibraryTask={addLibraryTask} onDeleteLibraryTask={deleteLibraryTask} onSetLibraryColor={setLibraryTaskColor} />
+              <StatsCard tasks={tasks} progress={progress} />
+              <WeeklyGoals goals={goals} tasks={tasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
+            </div>
+            <DayListView
+              tasks={tasks}
+              weekStart={weekStart}
+              todayDayId={todayDayId}
+              setTasks={setTasks}
               onDelete={deleteTask}
               onCycleStatus={cycleStatus}
               onToggleDaily={toggleDaily}
               onSetColor={setTaskColor}
               onSplitTask={splitTask}
             />
-            <LibraryPanel libraryTasks={libraryTasks} onAddLibraryTask={addLibraryTask} onDeleteLibraryTask={deleteLibraryTask} onSetLibraryColor={setLibraryTaskColor} />
-            <StatsCard tasks={tasks} progress={progress} />
-            <WeeklyGoals goals={goals} tasks={tasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
-          </div>
-
-          <div className="flex-1 flex flex-col gap-3 min-h-0 min-w-0">
-            <DailyGoalsBar
-              days={DAYS.map((d, i) => ({ id: d.id, label: d.label, date: formatDayDate(weekStart, i) }))}
-              goals={dailyGoals}
-              onAddGoal={addDailyGoal}
-              onToggleGoalDay={toggleDailyGoalDay}
-              onDeleteGoal={deleteDailyGoal}
-            />
-            <WeekCalendarGrid
-              days={DAYS.map((d, i) => ({ id: d.id, label: d.label, date: formatDayDate(weekStart, i) }))}
-              todayDayId={todayDayId}
-              scheduledTasksByDay={scheduledTasksByDay}
-              busyEventsByDay={busyEventsByDay}
-              syncedTaskIds={syncedTaskIds}
-              onDelete={deleteTask}
-              onCycleStatus={cycleStatus}
-              onSetColor={setTaskColor}
-            />
-          </div>
-
-          <DragOverlay dropAnimation={{ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.5' } } }) }}>
-            {activeTask ? (
-              <CalendarTaskBlock
-                task={activeTask} top={0} height={36} left="0" width="100%"
-                onDelete={deleteTask} onCycleStatus={cycleStatus} onSetColor={setTaskColor}
-                isOverlay
-              />
-            ) : null}
-            {activeLib ? <div className="px-4 py-2.5 bg-card rounded-xl shadow-overlay border border-primary/20 text-[13px] font-medium text-foreground">{activeLib.content}</div> : null}
-          </DragOverlay>
-        </DndContext>
+          </>
+        )}
       </main>
     </div>
   );
