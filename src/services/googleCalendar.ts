@@ -281,6 +281,41 @@ export async function createCalendarEvent(
   return res.json();
 }
 
+/** Reschedule an existing event's start/end time (used when a block is dragged to a new slot). */
+export async function updateCalendarEvent(
+  calendarId: string,
+  eventId: string,
+  startDateTime: string, // ISO local datetime e.g. "2026-03-22T10:00"
+  durationMinutes = 30,
+): Promise<{ id: string; htmlLink: string }> {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const start = new Date(startDateTime);
+  const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
+
+  const body = {
+    start: { dateTime: start.toISOString(), timeZone: tz },
+    end: { dateTime: end.toISOString(), timeZone: tz },
+  };
+
+  const res = await gcalFetch(`/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+  return res.json();
+}
+
+/** Delete a synced event (used when a task is unscheduled or removed). */
+export async function deleteCalendarEvent(calendarId: string, eventId: string): Promise<void> {
+  try {
+    await gcalFetch(`/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, {
+      method: 'DELETE',
+    });
+  } catch (err) {
+    // Event may already be gone (deleted directly in Google Calendar) — not fatal.
+    console.warn('[googleCalendar] failed to delete event:', eventId, err);
+  }
+}
+
 // ── Calendar name → keyword matching ─────────────────────────────────────────
 
 // Each rule maps keywords (found in task content) to a calendar identifier.

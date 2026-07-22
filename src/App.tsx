@@ -2,29 +2,30 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
   useSensor, useSensors, DragOverlay, DragEndEvent, DragStartEvent,
-  defaultDropAnimationSideEffects, DragOverEvent,
+  defaultDropAnimationSideEffects,
 } from '@dnd-kit/core';
-import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, CalendarPlus, ListTodo, RefreshCw } from 'lucide-react';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, ListTodo } from 'lucide-react';
 import { AcademicBoard } from '@/components/AcademicBoard';
 import { ListsPage } from '@/components/ListsPage';
-import { CalendarEventModal } from '@/components/CalendarEventModal';
-import { CalendarPickerPopup } from '@/components/CalendarPickerPopup';
 import { forceSeedData } from '@/lib/seed';
 import {
   isConfigured, isTokenValid, requestToken, clearToken,
-  loadSyncedEvents, createCalendarEvent, saveSyncedEvent, fetchWeekEvents,
-  type SyncedEventInfo, type GCalBusyEvent,
+  loadSyncedEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
+  saveSyncedEvent, fetchWeekEvents, fetchCalendars, matchCalendarName,
+  type SyncedEventInfo, type GCalBusyEvent, type GCalCalendar,
 } from '@/services/googleCalendar';
-import { DayColumn } from '@/components/DayColumn';
+import { WeekCalendarGrid } from '@/components/WeekCalendarGrid';
+import { TaskBankSidebar } from '@/components/TaskBankSidebar';
+import { CalendarTaskBlock } from '@/components/CalendarTaskBlock';
 import { StatsCard } from '@/components/StatsCard';
 import { LibraryPanel } from '@/components/LibraryPanel';
-import { TaskItem } from '@/components/TaskItem';
 import { WeeklyGoals, type WeeklyGoal } from '@/components/WeeklyGoals';
 import { translateText } from '@/lib/translate';
+import { parseSlotId, BANK_ID } from '@/lib/calendar-grid';
 import {
   DAYS, DAY_INDEX_TO_ID, getWeekSunday, getWeekKey, formatDayDate, getMonthYear, getWeekRange, nextStatus,
-  formatLocalDateTime, getDayIdForDate,
+  formatLocalDateTime,
 } from '@/lib/task-types';
 import type { Task, LibraryTask, TaskColor } from '@/lib/task-types';
 
@@ -148,26 +149,19 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
 
   const [storageData, setStorageData] = useState<StorageData>(loadStorage);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [searchValue, setSearchValue] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
-  const [globalCalendarToggle, setGlobalCalendarToggle] = useState(false);
 
   // Google Calendar state
   const [gcalConnected, setGcalConnected] = useState(() => isTokenValid());
-  const [calendarModalTaskId, setCalendarModalTaskId] = useState<string | null>(null);
+  const [calendars, setCalendars] = useState<GCalCalendar[]>([]);
   const [syncedEvents, setSyncedEvents] = useState<Record<string, SyncedEventInfo>>(() => loadSyncedEvents());
   const syncedTaskIds = useMemo(() => new Set(Object.keys(syncedEvents)), [syncedEvents]);
-  const [pendingCalendarPick, setPendingCalendarPick] = useState<{ taskId: string; libId: string; content: string } | null>(null);
   const [busyEventsByDay, setBusyEventsByDay] = useState<Record<string, GCalBusyEvent[]>>({});
-  const [isSyncingCalendar, setIsSyncingCalendar] = useState(false);
-  const [syncSummary, setSyncSummary] = useState<string | null>(null);
 
   // Silent token refresh — only if a token already exists (even expired)
   useEffect(() => {
     if (!isConfigured()) return;
     const tryRefresh = async () => {
       if (isTokenValid()) { setGcalConnected(true); return; }
-      // Only attempt silent refresh if user previously connected (token in storage)
       const hasStoredToken = !!localStorage.getItem('gcal_token');
       if (!hasStoredToken) return;
       try {
@@ -196,13 +190,12 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
     setGcalConnected(false);
   };
 
-  const handleAddToCalendar = useCallback((taskId: string) => {
-    setCalendarModalTaskId(taskId);
-  }, []);
-
-  const handleCalendarSynced = useCallback((taskId: string, info: SyncedEventInfo) => {
-    setSyncedEvents(prev => ({ ...prev, [taskId]: info }));
-  }, []);
+  // Cache the user's calendar list once connected, so tasks can be
+  // auto-matched to a calendar without prompting.
+  useEffect(() => {
+    if (!gcalConnected) { setCalendars([]); return; }
+    fetchCalendars().then(setCalendars).catch(() => setCalendars([]));
+  }, [gcalConnected]);
 
   // Pull existing Google Calendar events for the visible week, bucketed by day.
   const busyFetchRef = useRef(0);
@@ -218,7 +211,11 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
         if (busyFetchRef.current !== requestId) return; // stale response, a newer week was requested
         const byDay: Record<string, GCalBusyEvent[]> = {};
         for (const ev of events) {
-          const dayId = getDayIdForDate(new Date(ev.start), weekStart);
+          const start = new Date(ev.start);
+          const dayStart = new Date(weekStart);
+          dayStart.setHours(0, 0, 0, 0);
+          const diffDays = Math.round((new Date(start).setHours(0, 0, 0, 0) - dayStart.getTime()) / 86_400_000);
+          const dayId = DAY_INDEX_TO_ID[diffDays];
           if (!dayId) continue;
           (byDay[dayId] ??= []).push(ev);
         }
@@ -233,10 +230,6 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
   }, [weekKey, gcalConnected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tasks = useMemo(() => storageData.tasksByWeek[weekKey] ?? [], [storageData, weekKey]);
-  const calendarModalTask = useMemo(() => {
-    if (!calendarModalTaskId) return null;
-    return tasks.find(t => t.id === calendarModalTaskId) ?? null;
-  }, [calendarModalTaskId, tasks]);
   const goals = useMemo(() => storageData.goalsByWeek[weekKey] ?? [], [storageData, weekKey]);
   const libraryTasks = storageData.libraryTasks;
 
@@ -267,11 +260,9 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
     setStorageData(prev => {
       const weekTasks = prev.tasksByWeek[weekKey] ?? [];
 
-      // Gather all isDaily tasks across all weeks
       const allDailyTasks = Object.values(prev.tasksByWeek).flat().filter(t => t.isDaily);
       if (allDailyTasks.length === 0) return prev;
 
-      // Deduplicate by content+dayId — take first occurrence as template
       const seen = new Set<string>();
       const templates: Task[] = [];
       for (const t of allDailyTasks) {
@@ -279,7 +270,6 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
         if (!seen.has(key)) { seen.add(key); templates.push(t); }
       }
 
-      // Find templates missing from this week
       const existingKeys = new Set(weekTasks.filter(t => t.isDaily).map(t => `${t.content}|${t.dayId}`));
       const toAdd = templates.filter(t => !existingKeys.has(`${t.content}|${t.dayId}`));
       if (toAdd.length === 0) return prev;
@@ -320,10 +310,16 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
     return total === 0 ? 0 : Math.round((done / total) * 100);
   }, [tasks]);
 
-  const tasksByDay = useMemo(() => {
+  // Unscheduled tasks (no startTime) — the task bank.
+  const bankTasks = useMemo(() => tasks.filter(t => !t.startTime), [tasks]);
+
+  // Scheduled tasks (have startTime), bucketed by day — isDaily tasks appear
+  // in every day column with an independently-clickable status per day.
+  const scheduledTasksByDay = useMemo(() => {
     const map: Record<string, Task[]> = {};
     DAYS.forEach(d => { map[d.id] = []; });
     tasks.forEach(t => {
+      if (!t.startTime) return;
       if (t.isDaily) {
         DAYS.forEach(d => {
           const dayStatus = (t.dailyStatuses?.[d.id] ?? t.status) as Task['status'];
@@ -333,44 +329,72 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
         map[t.dayId].push(t);
       }
     });
-    Object.keys(map).forEach(k => map[k].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)));
     return map;
   }, [tasks]);
 
-  const addTaskToDay = useCallback(async (dayId: string, text: string): Promise<string> => {
-    const translated = await translateText(text);
-    const newId = genId();
-    setTasks(prev => {
-      const sortOrder = prev.filter(t => t.dayId === dayId && !t.isDaily).length;
-      return [...prev, {
-        id: newId, content: translated,
-        originalText: /[\u0590-\u05FF]/.test(text) ? text : undefined,
-        status: 'none', color: 'none', dayId, isDaily: false, sortOrder,
-      }];
+  // ── Google Calendar auto-sync ────────────────────────────────────────────
+
+  const syncTaskToCalendar = useCallback(async (
+    syncKey: string, content: string, dayIndex: number, time: string, duration: number, existingCalendarId?: string,
+  ) => {
+    if (!gcalConnected || calendars.length === 0) return;
+    const calendarId = existingCalendarId ?? matchCalendarName(content, calendars)?.id;
+    if (!calendarId) return;
+    const startDateTime = formatLocalDateTime(weekStart, dayIndex, time);
+    const existing = syncedEvents[syncKey];
+    try {
+      if (existing) {
+        await updateCalendarEvent(existing.calendarId, existing.eventId, startDateTime, duration);
+        const info: SyncedEventInfo = { ...existing, syncedAt: new Date().toISOString() };
+        saveSyncedEvent(syncKey, info);
+        setSyncedEvents(prev => ({ ...prev, [syncKey]: info }));
+      } else {
+        const event = await createCalendarEvent(calendarId, content, startDateTime, '', duration);
+        const info: SyncedEventInfo = {
+          eventId: event.id, calendarId,
+          calendarName: calendars.find(c => c.id === calendarId)?.summary ?? '',
+          htmlLink: event.htmlLink, syncedAt: new Date().toISOString(),
+        };
+        saveSyncedEvent(syncKey, info);
+        setSyncedEvents(prev => ({ ...prev, [syncKey]: info }));
+      }
+    } catch (err) {
+      console.error('[App] auto-sync failed:', syncKey, err);
+    }
+  }, [gcalConnected, calendars, weekStart, syncedEvents]);
+
+  const removeSyncedEvents = useCallback((keys: string[]) => {
+    keys.forEach(key => {
+      const info = syncedEvents[key];
+      if (info) deleteCalendarEvent(info.calendarId, info.eventId).catch(() => {});
     });
-    return newId;
+    setSyncedEvents(prev => {
+      const next = { ...prev };
+      keys.forEach(k => delete next[k]);
+      return next;
+    });
+  }, [syncedEvents]);
+
+  // ── Task mutations ───────────────────────────────────────────────────────
+
+  const addUnscheduledTask = useCallback(async (text: string) => {
+    const translated = await translateText(text);
+    setTasks(prev => [...prev, {
+      id: genId(), content: translated,
+      originalText: /[֐-׿]/.test(text) ? text : undefined,
+      status: 'none', color: 'none', dayId: DAY_IDS[0], isDaily: false, sortOrder: prev.length,
+    }]);
   }, [setTasks]);
-
-  const handleGlobalAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchValue.trim()) return;
-    setIsAdding(true);
-    const newId = await addTaskToDay(todayDayId ?? 'sun', searchValue);
-    if (globalCalendarToggle) setCalendarModalTaskId(newId);
-    setSearchValue('');
-    setGlobalCalendarToggle(false);
-    setIsAdding(false);
-  };
-
-  const addInlineTask = useCallback(async (dayId: string, text: string, addToCalendar = false) => {
-    if (!text.trim()) return;
-    const newId = await addTaskToDay(dayId, text);
-    if (addToCalendar) setCalendarModalTaskId(newId);
-  }, [addTaskToDay, setCalendarModalTaskId]);
 
   const deleteTask = useCallback((id: string) => {
-    setTasks(prev => prev.filter(t => t.id !== getRealId(id)));
-  }, [setTasks]);
+    const realId = getRealId(id);
+    const task = tasks.find(t => t.id === realId);
+    if (task?.startTime) {
+      const keys = task.isDaily ? DAYS.map(d => `${realId}_${d.id}`) : [realId];
+      removeSyncedEvents(keys);
+    }
+    setTasks(prev => prev.filter(t => t.id !== realId));
+  }, [tasks, setTasks, removeSyncedEvents]);
 
   const cycleStatus = useCallback((id: string) => {
     const parts = id.split('_');
@@ -405,34 +429,22 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
     if (!partsStr) return;
     const count = parseInt(partsStr);
     if (isNaN(count) || count < 2 || count > 10) return;
+    if (task.startTime) {
+      const keys = task.isDaily ? DAYS.map(d => `${realId}_${d.id}`) : [realId];
+      removeSyncedEvents(keys);
+    }
     const newTasks: Task[] = Array.from({ length: count }, (_, i) => ({
       id: genId(), content: `${task.content} (${i + 1}/${count})`,
       status: 'none' as const, color: task.color,
-      dayId: DAYS[i % DAYS.length]?.id ?? task.dayId, isDaily: false, sortOrder: i,
+      dayId: DAY_IDS[0], isDaily: false, sortOrder: i,
     }));
     setTasks(prev => [...prev.filter(t => t.id !== realId), ...newTasks]);
-  }, [tasks, setTasks]);
+  }, [tasks, setTasks, removeSyncedEvents]);
 
   const addLibraryTask = useCallback((t: LibraryTask) => setLibraryTasks(prev => [t, ...prev]), [setLibraryTasks]);
   const deleteLibraryTask = useCallback((id: string) => setLibraryTasks(prev => prev.filter(t => t.id !== id)), [setLibraryTasks]);
   const setLibraryTaskColor = useCallback((id: string, color: TaskColor) => setLibraryTasks(prev => prev.map(t => t.id === id ? { ...t, color } : t)), [setLibraryTasks]);
 
-  const moveTask = useCallback((id: string, direction: 'up' | 'down') => {
-    setTasks(prev => {
-      const task = prev.find(t => t.id === id);
-      if (!task) return prev;
-      const dayTasks = prev.filter(t => t.dayId === task.dayId);
-      const idx = dayTasks.findIndex(t => t.id === id);
-      const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-      if (swapIdx < 0 || swapIdx >= dayTasks.length) return prev;
-      const other = dayTasks[swapIdx];
-      return prev.map(t => {
-        if (t.id === id) return { ...t, sortOrder: other.sortOrder };
-        if (t.id === other.id) return { ...t, sortOrder: task.sortOrder };
-        return t;
-      });
-    });
-  }, [setTasks]);
   const addGoal = useCallback((name: string, target: number) => {
     setGoals(prev => [...prev, { id: genId(), name, targetCount: target }]);
   }, [setGoals]);
@@ -444,102 +456,77 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
     const d = new Date(prev); d.setDate(d.getDate() + dir * 7); return d;
   });
 
-  const handleDragStart = (e: DragStartEvent) => setActiveId(e.active.id as string);
+  // ── Drag & drop: bank ↔ time grid ────────────────────────────────────────
 
-  const handleDragOver = useCallback((e: DragOverEvent) => {
-    const { active, over } = e;
-    if (!over) return;
-    const aid = active.id as string, oid = over.id as string;
-    if (libraryTasks.some(lt => lt.id === aid)) return;
-    const realAid = getRealId(aid);
-    const at = tasks.find(t => t.id === realAid);
-    if (!at || at.isDaily) return;
-    if ((DAY_IDS as string[]).includes(oid)) {
-      if (at.dayId !== oid) setTasks(prev => prev.map(t => t.id === realAid ? { ...t, dayId: oid } : t));
-      return;
-    }
-    const ot = tasks.find(t => t.id === getRealId(oid));
-    if (ot && at.dayId !== ot.dayId) setTasks(prev => prev.map(t => t.id === realAid ? { ...t, dayId: ot.dayId } : t));
-  }, [libraryTasks, tasks, setTasks]);
+  const handleDragStart = (e: DragStartEvent) => setActiveId(e.active.id as string);
 
   const handleDragEnd = useCallback((e: DragEndEvent) => {
     const { active, over } = e;
     setActiveId(null);
     if (!over) return;
-    const aid = active.id as string, oid = over.id as string;
+    const aid = active.id as string;
+    const overId = over.id as string;
+
+    // Library template dropped: create a new task, scheduled if dropped on a slot.
     const lib = libraryTasks.find(lt => lt.id === aid);
     if (lib) {
-      const dayId = (DAY_IDS as string[]).includes(oid) ? oid : (tasks.find(t => t.id === getRealId(oid))?.dayId ?? null);
-      if (dayId) {
-        const newId = genId();
-        setTasks(prev => [...prev, {
-          id: newId, content: lib.content, originalText: lib.originalText,
-          status: 'none', color: 'none', dayId, isDaily: false,
-          sortOrder: prev.filter(t => t.dayId === dayId).length,
-          startTime: lib.startTime, durationMinutes: lib.durationMinutes, calendarId: lib.calendarId,
-        }]);
-        if (lib.startTime && !lib.calendarId) {
-          setPendingCalendarPick({ taskId: newId, libId: lib.id, content: lib.content });
-        }
+      const slot = parseSlotId(overId);
+      const newId = genId();
+      setTasks(prev => [...prev, {
+        id: newId, content: lib.content, originalText: lib.originalText,
+        status: 'none', color: lib.color ?? 'none',
+        dayId: slot?.dayId ?? DAY_IDS[0], isDaily: false, sortOrder: 0,
+        startTime: slot?.time,
+        durationMinutes: lib.durationMinutes,
+        calendarId: lib.calendarId,
+      }]);
+      if (slot) {
+        const dayIndex = DAYS.findIndex(d => d.id === slot.dayId);
+        syncTaskToCalendar(newId, lib.content, dayIndex, slot.time, lib.durationMinutes ?? 30, lib.calendarId);
       }
       return;
     }
-    if (active.id !== over.id && !(DAY_IDS as string[]).includes(oid)) {
-      const realAid = getRealId(aid), realOid = getRealId(oid);
-      if (tasks.find(t => t.id === realAid)?.isDaily) return;
-      setTasks(prev => {
-        const oi = prev.findIndex(t => t.id === realAid), ni = prev.findIndex(t => t.id === realOid);
-        return oi > -1 && ni > -1 ? arrayMove(prev, oi, ni) : prev;
+
+    const realAid = getRealId(aid);
+    const task = tasks.find(t => t.id === realAid);
+    if (!task) return;
+    const duration = task.durationMinutes ?? 30;
+
+    // Dropped back onto the bank: unschedule.
+    if (overId === BANK_ID) {
+      if (!task.startTime) return;
+      const keys = task.isDaily ? DAYS.map(d => `${realAid}_${d.id}`) : [realAid];
+      removeSyncedEvents(keys);
+      setTasks(prev => prev.map(t => t.id === realAid ? { ...t, startTime: undefined } : t));
+      return;
+    }
+
+    // Dropped onto a time slot: schedule (or reschedule) + auto-sync.
+    const slot = parseSlotId(overId);
+    if (!slot) return;
+    const { dayId, time } = slot;
+    if (task.startTime === time && (task.isDaily || task.dayId === dayId)) return; // no-op
+
+    setTasks(prev => prev.map(t => t.id === realAid ? { ...t, dayId: t.isDaily ? t.dayId : dayId, startTime: time } : t));
+
+    if (task.isDaily) {
+      DAYS.forEach((d, idx) => {
+        syncTaskToCalendar(`${realAid}_${d.id}`, task.content, idx, time, duration, task.calendarId);
       });
+    } else {
+      const dayIndex = DAYS.findIndex(d => d.id === dayId);
+      syncTaskToCalendar(realAid, task.content, dayIndex, time, duration, task.calendarId);
     }
-  }, [libraryTasks, tasks, setTasks]);
-
-  const handleAssignCalendar = useCallback((calendarId: string) => {
-    if (!pendingCalendarPick) return;
-    const { taskId, libId } = pendingCalendarPick;
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, calendarId } : t));
-    setLibraryTasks(prev => prev.map(t => t.id === libId ? { ...t, calendarId } : t));
-    setPendingCalendarPick(null);
-  }, [pendingCalendarPick, setTasks, setLibraryTasks]);
-
-  const handleCancelCalendarPick = useCallback(() => setPendingCalendarPick(null), []);
-
-  const handleSyncToCalendar = useCallback(async () => {
-    const toSync = tasks.filter(t => !t.isDaily && t.startTime && t.calendarId && !syncedTaskIds.has(t.id));
-    if (toSync.length === 0) { setSyncSummary('No scheduled tasks to sync'); return; }
-    setIsSyncingCalendar(true);
-    setSyncSummary(null);
-    let succeeded = 0, failed = 0;
-    for (const t of toSync) {
-      try {
-        const dayIndex = DAYS.findIndex(d => d.id === t.dayId);
-        const startDateTime = formatLocalDateTime(weekStart, dayIndex, t.startTime!);
-        const event = await createCalendarEvent(t.calendarId!, t.content, startDateTime, '', t.durationMinutes ?? 30);
-        const info: SyncedEventInfo = {
-          eventId: event.id, calendarId: t.calendarId!, calendarName: '',
-          htmlLink: event.htmlLink, syncedAt: new Date().toISOString(),
-        };
-        saveSyncedEvent(t.id, info);
-        setSyncedEvents(prev => ({ ...prev, [t.id]: info }));
-        succeeded++;
-      } catch (err) {
-        console.error('[App] failed to sync task to calendar:', t.id, err);
-        failed++;
-      }
-    }
-    setIsSyncingCalendar(false);
-    setSyncSummary(failed > 0 ? `Synced ${succeeded}, ${failed} failed` : `Synced ${succeeded} task${succeeded === 1 ? '' : 's'}`);
-    setTimeout(() => setSyncSummary(null), 4000);
-  }, [tasks, syncedTaskIds, weekStart]);
+  }, [libraryTasks, tasks, setTasks, removeSyncedEvents, syncTaskToCalendar]);
 
   const activeTask = useMemo(() => {
     if (!activeId) return null;
-    for (const dayTasks of Object.values(tasksByDay)) {
+    for (const dayTasks of Object.values(scheduledTasksByDay)) {
       const found = dayTasks.find(t => t.id === activeId);
       if (found) return found;
     }
     return tasks.find(t => t.id === activeId) ?? null;
-  }, [activeId, tasksByDay, tasks]);
+  }, [activeId, scheduledTasksByDay, tasks]);
 
   const activeLib = activeId ? libraryTasks.find(lt => lt.id === activeId) : null;
 
@@ -581,25 +568,14 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
             </button>
             {isConfigured() ? (
               gcalConnected ? (
-                <>
-                  <button
-                    onClick={handleSyncToCalendar}
-                    disabled={isSyncingCalendar}
-                    title={syncSummary ?? 'Push scheduled tasks to Google Calendar'}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-base disabled:opacity-50"
-                  >
-                    <RefreshCw size={14} className={isSyncingCalendar ? 'animate-spin' : ''} />
-                    <span>{syncSummary ?? 'Sync to Calendar'}</span>
-                  </button>
-                  <button
-                    onClick={handleDisconnectCalendar}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[hsl(var(--status-green))] bg-[hsl(var(--status-green-bg))] hover:bg-[hsl(var(--status-red-bg))] hover:text-destructive rounded-xl transition-base"
-                    title="Disconnect Google Calendar"
-                  >
-                    <Unlink size={14} />
-                    <span>Calendar</span>
-                  </button>
-                </>
+                <button
+                  onClick={handleDisconnectCalendar}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[hsl(var(--status-green))] bg-[hsl(var(--status-green-bg))] hover:bg-[hsl(var(--status-red-bg))] hover:text-destructive rounded-xl transition-base"
+                  title="Disconnect Google Calendar"
+                >
+                  <Unlink size={14} />
+                  <span>Calendar</span>
+                </button>
               ) : (
                 <button
                   onClick={handleConnectCalendar}
@@ -628,83 +604,47 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
         </div>
       </header>
 
-      <div className="px-6 pt-4 pb-2 shrink-0">
-        <form onSubmit={handleGlobalAdd}>
-          <div className="relative">
-            <input
-              type="text" value={searchValue} onChange={e => setSearchValue(e.target.value)} dir="auto"
-              placeholder={`Add a task to ${todayDayId ? DAYS.find(d => d.id === todayDayId)?.label : 'Sunday'}... (supports Hebrew)`}
-              className={`w-full py-3 bg-card rounded-2xl shadow-card text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/15 placeholder:text-muted-foreground/35 transition-base ${isConfigured() && gcalConnected ? 'pl-5 pr-12' : 'px-5'}`}
-            />
-            {isAdding && <span className="absolute right-4 top-3.5 text-xs text-muted-foreground">Adding...</span>}
-            {!isAdding && isConfigured() && gcalConnected && (
-              <button
-                type="button"
-                onClick={() => setGlobalCalendarToggle(v => !v)}
-                className={`absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-base ${
-                  globalCalendarToggle
-                    ? 'text-[hsl(var(--task-blue))] bg-[hsl(var(--task-blue)/.1)]'
-                    : 'text-muted-foreground/30 hover:text-[hsl(var(--task-blue))]'
-                }`}
-                title={globalCalendarToggle ? 'Will add to Google Calendar' : 'Add to Google Calendar'}
-              >
-                <CalendarPlus size={15} />
-              </button>
-            )}
-          </div>
-        </form>
-      </div>
-
-      <main className="flex-1 px-4 pb-4 flex gap-3 min-h-0 overflow-hidden">
+      <main className="flex-1 px-4 pt-4 pb-4 flex gap-3 min-h-0 overflow-hidden">
         <DndContext sensors={sensors} collisionDetection={closestCenter}
-          onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
-          <div className="w-[220px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2">
+          onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2">
+            <TaskBankSidebar
+              tasks={bankTasks}
+              onAddTask={addUnscheduledTask}
+              onDelete={deleteTask}
+              onCycleStatus={cycleStatus}
+              onToggleDaily={toggleDaily}
+              onSetColor={setTaskColor}
+              onSplitTask={splitTask}
+            />
             <LibraryPanel libraryTasks={libraryTasks} onAddLibraryTask={addLibraryTask} onDeleteLibraryTask={deleteLibraryTask} onSetLibraryColor={setLibraryTaskColor} />
             <StatsCard tasks={tasks} progress={progress} />
             <WeeklyGoals goals={goals} tasks={tasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
           </div>
 
-          <div className="flex-1 flex gap-2 overflow-x-auto pb-2">
-            {DAYS.map((day, i) => (
-              <DayColumn key={day.id} dayId={day.id} label={day.label}
-                date={formatDayDate(weekStart, i)} tasks={tasksByDay[day.id]}
-                isToday={todayDayId === day.id} onDelete={deleteTask}
-                onCycleStatus={cycleStatus} onToggleDaily={toggleDaily}
-                onSetColor={setTaskColor} onSplitTask={splitTask} onAddInline={addInlineTask}
-                onMoveTask={moveTask}
-                calendarConfigured={isConfigured() && gcalConnected}
-                onAddToCalendar={isConfigured() ? handleAddToCalendar : undefined}
-                syncedTaskIds={syncedTaskIds}
-                busyEvents={busyEventsByDay[day.id]}
-              />
-            ))}
-          </div>
+          <WeekCalendarGrid
+            days={DAYS.map((d, i) => ({ id: d.id, label: d.label, date: formatDayDate(weekStart, i) }))}
+            todayDayId={todayDayId}
+            scheduledTasksByDay={scheduledTasksByDay}
+            busyEventsByDay={busyEventsByDay}
+            syncedTaskIds={syncedTaskIds}
+            onDelete={deleteTask}
+            onCycleStatus={cycleStatus}
+            onSetColor={setTaskColor}
+          />
 
           <DragOverlay dropAnimation={{ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.5' } } }) }}>
-            {activeTask ? <TaskItem task={activeTask} isOverlay /> : null}
+            {activeTask ? (
+              <CalendarTaskBlock
+                task={activeTask} top={0} height={36} left="0" width="100%"
+                onDelete={deleteTask} onCycleStatus={cycleStatus} onSetColor={setTaskColor}
+                isOverlay
+              />
+            ) : null}
             {activeLib ? <div className="px-4 py-2.5 bg-card rounded-xl shadow-overlay border border-primary/20 text-[13px] font-medium text-foreground">{activeLib.content}</div> : null}
           </DragOverlay>
         </DndContext>
       </main>
-
-      {calendarModalTask && (
-        <CalendarEventModal
-          task={calendarModalTask}
-          onClose={() => setCalendarModalTaskId(null)}
-          onSynced={(taskId, info) => {
-            handleCalendarSynced(taskId, info);
-            setCalendarModalTaskId(null);
-          }}
-        />
-      )}
-
-      {pendingCalendarPick && (
-        <CalendarPickerPopup
-          taskContent={pendingCalendarPick.content}
-          onAssign={handleAssignCalendar}
-          onCancel={handleCancelCalendarPick}
-        />
-      )}
     </div>
   );
 }

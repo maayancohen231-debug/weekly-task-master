@@ -5,36 +5,9 @@ import { Plus, Trash2, GripVertical, Palette, Clock } from 'lucide-react';
 import { translateText } from '@/lib/translate';
 import type { LibraryTask, TaskColor } from '@/lib/task-types';
 import { TASK_COLORS } from '@/lib/task-types';
-
-const colorDotClasses: Record<TaskColor, string> = {
-  none: '',
-  blue: 'bg-[hsl(var(--task-blue))]',
-  purple: 'bg-[hsl(var(--task-purple))]',
-  orange: 'bg-[hsl(var(--task-orange))]',
-  pink: 'bg-[hsl(var(--task-pink))]',
-  teal: 'bg-[hsl(var(--task-teal))]',
-  red: 'bg-[hsl(var(--task-red))]',
-  amber: 'bg-[hsl(var(--task-amber))]',
-  green: 'bg-[hsl(var(--task-green))]',
-  indigo: 'bg-[hsl(var(--task-indigo))]',
-  rose: 'bg-[hsl(var(--task-rose))]',
-};
+import { colorDotClasses, colorBorderOverrides } from '@/lib/task-styles';
 
 const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120];
-
-const colorBorderOverrides: Record<TaskColor, string> = {
-  none: '',
-  blue: 'border-l-[hsl(var(--task-blue))] border-l-[3px]',
-  purple: 'border-l-[hsl(var(--task-purple))] border-l-[3px]',
-  orange: 'border-l-[hsl(var(--task-orange))] border-l-[3px]',
-  pink: 'border-l-[hsl(var(--task-pink))] border-l-[3px]',
-  teal: 'border-l-[hsl(var(--task-teal))] border-l-[3px]',
-  red: 'border-l-[hsl(var(--task-red))] border-l-[3px]',
-  amber: 'border-l-[hsl(var(--task-amber))] border-l-[3px]',
-  green: 'border-l-[hsl(var(--task-green))] border-l-[3px]',
-  indigo: 'border-l-[hsl(var(--task-indigo))] border-l-[3px]',
-  rose: 'border-l-[hsl(var(--task-rose))] border-l-[3px]',
-};
 
 function DraggableLibraryItem({
   task, onDelete, onSetColor,
