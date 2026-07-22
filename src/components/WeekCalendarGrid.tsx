@@ -4,7 +4,7 @@ import type { Task, TaskColor } from '@/lib/task-types';
 import type { GCalBusyEvent } from '@/services/googleCalendar';
 import {
   GRID_START_HOUR, GRID_END_HOUR, GRID_HOURS, SLOT_MINUTES, PX_PER_MINUTE, SLOT_TIMES,
-  minutesFromGridStart, slotId, layoutOverlaps,
+  minutesFromGridStart, slotId, layoutOverlaps, clampToGridPx,
 } from '@/lib/calendar-grid';
 import { CalendarTaskBlock } from './CalendarTaskBlock';
 import { GCalBusyBlock } from './GCalBusyBlock';
@@ -50,6 +50,10 @@ function nowIndicatorTop(): number | null {
   return (mins - startMins) * PX_PER_MINUTE;
 }
 
+function eventTimeString(d: Date): string {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 export function WeekCalendarGrid({
   days, todayDayId, scheduledTasksByDay, busyEventsByDay, syncedTaskIds,
   onDelete, onCycleStatus, onSetColor,
@@ -82,6 +86,17 @@ export function WeekCalendarGrid({
             const busy = busyEventsByDay[day.id] ?? [];
             const isToday = day.id === todayDayId;
 
+            // Busy-event times as minutes-since-grid-start, computed once and reused
+            // for both overlap layout and rendering so the two stay in sync.
+            const busyRanges = new Map<string, { startMin: number; endMin: number }>();
+            busy.forEach(ev => {
+              const start = new Date(ev.start);
+              const end = new Date(ev.end);
+              const startMin = minutesFromGridStart(eventTimeString(start));
+              const endMin = startMin + Math.max(15, (end.getTime() - start.getTime()) / 60000);
+              busyRanges.set(ev.id, { startMin, endMin });
+            });
+
             const intervals = [
               ...tasks.map(t => ({
                 id: t.id,
@@ -89,14 +104,8 @@ export function WeekCalendarGrid({
                 endMin: minutesFromGridStart(t.startTime!) + (t.durationMinutes ?? 30),
               })),
               ...busy.map(ev => {
-                const start = new Date(ev.start);
-                const end = new Date(ev.end);
-                const startTime = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
-                return {
-                  id: `busy_${ev.id}`,
-                  startMin: minutesFromGridStart(startTime),
-                  endMin: minutesFromGridStart(startTime) + Math.max(15, (end.getTime() - start.getTime()) / 60000),
-                };
+                const r = busyRanges.get(ev.id)!;
+                return { id: `busy_${ev.id}`, startMin: r.startMin, endMin: r.endMin };
               }),
             ];
             const layout = layoutOverlaps(intervals);
@@ -125,15 +134,14 @@ export function WeekCalendarGrid({
                     const l = layout.get(`busy_${ev.id}`);
                     const totalCols = l?.totalCols ?? 1;
                     const col = l?.col ?? 0;
-                    const start = new Date(ev.start);
-                    const end = new Date(ev.end);
-                    const startTime = `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`;
+                    const r = busyRanges.get(ev.id)!;
+                    const { top, height } = clampToGridPx(r.startMin, r.endMin);
                     return (
                       <GCalBusyBlock
                         key={ev.id}
                         event={ev}
-                        top={minutesFromGridStart(startTime) * PX_PER_MINUTE}
-                        height={Math.max(15, (end.getTime() - start.getTime()) / 60000) * PX_PER_MINUTE - 2}
+                        top={top}
+                        height={height}
                         left={`${(col / totalCols) * 100}%`}
                         width={`${(1 / totalCols) * 100}%`}
                       />
@@ -145,12 +153,14 @@ export function WeekCalendarGrid({
                     const totalCols = l?.totalCols ?? 1;
                     const col = l?.col ?? 0;
                     const duration = task.durationMinutes ?? 30;
+                    const startMin = minutesFromGridStart(task.startTime!);
+                    const { top, height } = clampToGridPx(startMin, startMin + duration);
                     return (
                       <CalendarTaskBlock
                         key={task.id}
                         task={task}
-                        top={minutesFromGridStart(task.startTime!) * PX_PER_MINUTE}
-                        height={duration * PX_PER_MINUTE - 2}
+                        top={top}
+                        height={height}
                         left={`${(col / totalCols) * 100}%`}
                         width={`${(1 / totalCols) * 100}%`}
                         onDelete={onDelete}

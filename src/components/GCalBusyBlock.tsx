@@ -14,20 +14,34 @@ function formatEventTime(iso: string): string {
   return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
+/** "#rrggbb" -> "rgba(r,g,b,alpha)", falling back to a neutral gray if missing/invalid. */
+function hexToRgba(hex: string | undefined, alpha: number): string {
+  const match = hex?.match(/^#?([0-9a-f]{6})$/i);
+  if (!match) return `rgba(120,120,120,${alpha})`;
+  const int = parseInt(match[1], 16);
+  const r = (int >> 16) & 255, g = (int >> 8) & 255, b = int & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 export function GCalBusyBlock({ event, top, height, left, width }: GCalBusyBlockProps) {
   const compact = height < 40;
+  const color = event.calendarColor;
   return (
     <div
       title={`${event.calendarName}: ${event.title}`}
-      style={{ position: 'absolute', top, height, left, width }}
-      className="rounded-lg border border-border/50 bg-[repeating-linear-gradient(135deg,hsl(var(--muted))_0px,hsl(var(--muted))_6px,transparent_6px,transparent_12px)] bg-muted/50 px-2 py-1 overflow-hidden text-muted-foreground"
+      style={{
+        position: 'absolute', top, height, left, width,
+        backgroundColor: hexToRgba(color, 0.16),
+        borderLeft: `3px solid ${color ?? 'rgba(120,120,120,0.6)'}`,
+      }}
+      className="rounded-lg border border-border/40 px-2 py-1 overflow-hidden"
     >
       <div className="flex items-center gap-1 min-w-0">
-        <Lock size={10} className="shrink-0 opacity-60" />
-        <span className="text-[11px] leading-tight truncate flex-1">{event.title}</span>
+        <Lock size={9} className="shrink-0 opacity-50 text-foreground" />
+        <span className="text-[11px] leading-tight truncate flex-1 text-foreground/90">{event.title}</span>
       </div>
       {!compact && (
-        <span className="text-[10px] opacity-70">{formatEventTime(event.start)}</span>
+        <span className="text-[10px] text-muted-foreground">{formatEventTime(event.start)}</span>
       )}
     </div>
   );

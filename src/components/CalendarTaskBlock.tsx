@@ -44,24 +44,26 @@ export function CalendarTaskBlock({
       {...attributes}
       {...listeners}
       onClick={() => onCycleStatus(task.id)}
-      className={`group ${isOverlay ? '' : 'absolute'} overflow-hidden rounded-lg border px-2 py-1 cursor-grab active:cursor-grabbing transition-base ${statusClasses[task.status]} ${statusBorderClasses[task.status]} ${colorBorderOverrides[taskColor]} ${
+      className={`group ${isOverlay ? '' : 'absolute'} rounded-lg border px-2 py-1 cursor-grab active:cursor-grabbing transition-base ${statusClasses[task.status]} ${statusBorderClasses[task.status]} ${colorBorderOverrides[taskColor]} ${
         isOverlay ? 'shadow-overlay scale-[1.02]' : 'shadow-sm-custom hover:shadow-hover hover:z-10'
       }`}
     >
-      <div className="flex items-center gap-1 min-w-0">
-        {task.isDaily && <Repeat size={9} className="shrink-0 text-primary/50" />}
-        {taskColor !== 'none' && <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${colorDotClasses[taskColor]}`} />}
-        {isSynced && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[hsl(var(--task-blue))]" title="Synced to Google Calendar" />}
-        <p className={`flex-1 min-w-0 text-[11px] font-medium leading-tight truncate ${task.status === 'green' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-          {task.content}
-        </p>
+      <div className="overflow-hidden">
+        <div className="flex items-center gap-1 min-w-0">
+          {task.isDaily && <Repeat size={9} className="shrink-0 text-primary/50" />}
+          {taskColor !== 'none' && <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${colorDotClasses[taskColor]}`} />}
+          {isSynced && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[hsl(var(--task-blue))]" title="Synced to Google Calendar" />}
+          <p className={`flex-1 min-w-0 text-[11px] font-medium leading-tight truncate ${task.status === 'green' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+            {task.content}
+          </p>
+        </div>
+        {!compact && (
+          <p className="flex items-center gap-0.5 text-[10px] text-muted-foreground/60 mt-0.5">
+            <Clock size={9} />
+            {task.startTime}
+          </p>
+        )}
       </div>
-      {!compact && (
-        <p className="flex items-center gap-0.5 text-[10px] text-muted-foreground/60 mt-0.5">
-          <Clock size={9} />
-          {task.startTime}
-        </p>
-      )}
 
       <div className="absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100 flex items-center gap-0.5 bg-inherit transition-base">
         <div className="relative">
