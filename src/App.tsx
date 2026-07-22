@@ -21,13 +21,14 @@ import { CalendarTaskBlock } from '@/components/CalendarTaskBlock';
 import { StatsCard } from '@/components/StatsCard';
 import { LibraryPanel } from '@/components/LibraryPanel';
 import { WeeklyGoals, type WeeklyGoal } from '@/components/WeeklyGoals';
+import { DailyGoalsBar } from '@/components/DailyGoalsBar';
 import { translateText } from '@/lib/translate';
 import { parseSlotId, BANK_ID } from '@/lib/calendar-grid';
 import {
   DAYS, DAY_INDEX_TO_ID, getWeekSunday, getWeekKey, formatDayDate, getMonthYear, getWeekRange, nextStatus,
   formatLocalDateTime,
 } from '@/lib/task-types';
-import type { Task, LibraryTask, TaskColor } from '@/lib/task-types';
+import type { Task, LibraryTask, TaskColor, DailyGoal } from '@/lib/task-types';
 
 // ── Error Boundary ────────────────────────────────────────────────────────────
 
@@ -75,6 +76,7 @@ const DAY_IDS = DAYS.map(d => d.id);
 interface StorageData {
   tasksByWeek: Record<string, Task[]>;
   goalsByWeek: Record<string, WeeklyGoal[]>;
+  dailyGoalsByWeek: Record<string, DailyGoal[]>;
   libraryTasks: LibraryTask[];
 }
 
@@ -86,11 +88,12 @@ function loadStorage(): StorageData {
       return {
         tasksByWeek: parsed.tasksByWeek ?? {},
         goalsByWeek: parsed.goalsByWeek ?? {},
+        dailyGoalsByWeek: parsed.dailyGoalsByWeek ?? {},
         libraryTasks: parsed.libraryTasks ?? [],
       };
     }
   } catch { /* ignore */ }
-  return { tasksByWeek: {}, goalsByWeek: {}, libraryTasks: [] };
+  return { tasksByWeek: {}, goalsByWeek: {}, dailyGoalsByWeek: {}, libraryTasks: [] };
 }
 
 function genId(): string {
@@ -231,6 +234,7 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
 
   const tasks = useMemo(() => storageData.tasksByWeek[weekKey] ?? [], [storageData, weekKey]);
   const goals = useMemo(() => storageData.goalsByWeek[weekKey] ?? [], [storageData, weekKey]);
+  const dailyGoals = useMemo(() => storageData.dailyGoalsByWeek[weekKey] ?? [], [storageData, weekKey]);
   const libraryTasks = storageData.libraryTasks;
 
   useEffect(() => {
@@ -248,6 +252,13 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
     setStorageData(prev => ({
       ...prev,
       goalsByWeek: { ...prev.goalsByWeek, [weekKey]: updater(prev.goalsByWeek[weekKey] ?? []) },
+    }));
+  }, [weekKey]);
+
+  const setDailyGoals = useCallback((updater: (prev: DailyGoal[]) => DailyGoal[]) => {
+    setStorageData(prev => ({
+      ...prev,
+      dailyGoalsByWeek: { ...prev.dailyGoalsByWeek, [weekKey]: updater(prev.dailyGoalsByWeek[weekKey] ?? []) },
     }));
   }, [weekKey]);
 
@@ -452,6 +463,18 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
     setGoals(prev => prev.filter(g => g.id !== id));
   }, [setGoals]);
 
+  const addDailyGoal = useCallback((name: string) => {
+    setDailyGoals(prev => [...prev, { id: genId(), name, doneByDay: {} }]);
+  }, [setDailyGoals]);
+  const deleteDailyGoal = useCallback((id: string) => {
+    setDailyGoals(prev => prev.filter(g => g.id !== id));
+  }, [setDailyGoals]);
+  const toggleDailyGoalDay = useCallback((goalId: string, dayId: string) => {
+    setDailyGoals(prev => prev.map(g => g.id === goalId
+      ? { ...g, doneByDay: { ...g.doneByDay, [dayId]: !g.doneByDay[dayId] } }
+      : g));
+  }, [setDailyGoals]);
+
   const navigateWeek = (dir: number) => setWeekStart(prev => {
     const d = new Date(prev); d.setDate(d.getDate() + dir * 7); return d;
   });
@@ -622,16 +645,25 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
             <WeeklyGoals goals={goals} tasks={tasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
           </div>
 
-          <WeekCalendarGrid
-            days={DAYS.map((d, i) => ({ id: d.id, label: d.label, date: formatDayDate(weekStart, i) }))}
-            todayDayId={todayDayId}
-            scheduledTasksByDay={scheduledTasksByDay}
-            busyEventsByDay={busyEventsByDay}
-            syncedTaskIds={syncedTaskIds}
-            onDelete={deleteTask}
-            onCycleStatus={cycleStatus}
-            onSetColor={setTaskColor}
-          />
+          <div className="flex-1 flex flex-col gap-3 min-h-0 min-w-0">
+            <DailyGoalsBar
+              days={DAYS.map((d, i) => ({ id: d.id, label: d.label, date: formatDayDate(weekStart, i) }))}
+              goals={dailyGoals}
+              onAddGoal={addDailyGoal}
+              onToggleGoalDay={toggleDailyGoalDay}
+              onDeleteGoal={deleteDailyGoal}
+            />
+            <WeekCalendarGrid
+              days={DAYS.map((d, i) => ({ id: d.id, label: d.label, date: formatDayDate(weekStart, i) }))}
+              todayDayId={todayDayId}
+              scheduledTasksByDay={scheduledTasksByDay}
+              busyEventsByDay={busyEventsByDay}
+              syncedTaskIds={syncedTaskIds}
+              onDelete={deleteTask}
+              onCycleStatus={cycleStatus}
+              onSetColor={setTaskColor}
+            />
+          </div>
 
           <DragOverlay dropAnimation={{ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.5' } } }) }}>
             {activeTask ? (

@@ -34,6 +34,13 @@ export interface LibraryTask {
   calendarId?: string; // remembered calendar for repeat drags of this template
 }
 
+/** A recurring daily goal — same goal every day of the week, marked done/not done per day. */
+export interface DailyGoal {
+  id: string;
+  name: string;
+  doneByDay: Record<string, boolean>; // dayId -> done
+}
+
 export const TASK_COLORS: { id: TaskColor; label: string }[] = [
   { id: 'none', label: 'None' },
   { id: 'blue', label: 'Blue' },
