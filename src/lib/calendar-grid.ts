@@ -1,7 +1,7 @@
 export const GRID_START_HOUR = 6;
 export const GRID_END_HOUR = 24;
 export const SLOT_MINUTES = 30;
-export const PX_PER_HOUR = 72;
+export const PX_PER_HOUR = 48;
 export const PX_PER_MINUTE = PX_PER_HOUR / 60;
 
 export const GRID_HOURS = Array.from(

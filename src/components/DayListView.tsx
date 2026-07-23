@@ -13,6 +13,10 @@ import type { Task, TaskColor } from '@/lib/task-types';
 
 const DAY_IDS = DAYS.map(d => d.id);
 
+// The list/columns view is a Sun-Thu work-week planner — Friday and Saturday
+// only show up in the calendar view, which covers the full week.
+const LIST_VIEW_DAYS = DAYS.filter(d => d.id !== 'fri' && d.id !== 'sat');
+
 function genId(): string {
   return Math.random().toString(36).substr(2, 9);
 }
@@ -51,10 +55,10 @@ export function DayListView({
 
   const tasksByDay = useMemo(() => {
     const map: Record<string, Task[]> = {};
-    DAYS.forEach(d => { map[d.id] = []; });
+    LIST_VIEW_DAYS.forEach(d => { map[d.id] = []; });
     tasks.forEach(t => {
       if (t.isDaily) {
-        DAYS.forEach(d => {
+        LIST_VIEW_DAYS.forEach(d => {
           const dayStatus = (t.dailyStatuses?.[d.id] ?? t.status) as Task['status'];
           map[d.id].push({ ...t, dayId: d.id, id: `${t.id}_${d.id}`, status: dayStatus });
         });
@@ -147,7 +151,7 @@ export function DayListView({
     <DndContext sensors={sensors} collisionDetection={closestCenter}
       onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
       <div className="flex-1 flex gap-2 overflow-x-auto pb-2 min-h-0 scroll-thin">
-        {DAYS.map((day, i) => (
+        {LIST_VIEW_DAYS.map((day, i) => (
           <DayColumn key={day.id} dayId={day.id} label={day.label}
             date={formatDayDate(weekStart, i)} tasks={tasksByDay[day.id]}
             isToday={todayDayId === day.id} onDelete={onDelete}
