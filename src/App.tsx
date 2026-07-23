@@ -5,9 +5,8 @@ import {
   defaultDropAnimationSideEffects,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, ListTodo, LayoutList, CalendarRange } from 'lucide-react';
+import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, LayoutList, CalendarRange } from 'lucide-react';
 import { AcademicBoard } from '@/components/AcademicBoard';
-import { ListsPage } from '@/components/ListsPage';
 import { forceSeedData } from '@/lib/seed';
 import {
   isConfigured, isTokenValid, requestToken, clearToken,
@@ -112,7 +111,7 @@ function getRealId(id: string): string {
 // ── App shell — only handles page routing, no other hooks ────────────────────
 
 export default function App() {
-  const [page, setPage] = useState<'planner' | 'academic' | 'lists'>('planner');
+  const [page, setPage] = useState<'planner' | 'academic'>('planner');
 
   if (page === 'academic') {
     return (
@@ -122,24 +121,16 @@ export default function App() {
     );
   }
 
-  if (page === 'lists') {
-    return (
-      <ErrorBoundary>
-        <ListsPage onBack={() => setPage('planner')} />
-      </ErrorBoundary>
-    );
-  }
-
   return (
     <ErrorBoundary>
-      <Planner onNavigateAcademic={() => setPage('academic')} onNavigateLists={() => setPage('lists')} />
+      <Planner onNavigateAcademic={() => setPage('academic')} />
     </ErrorBoundary>
   );
 }
 
 // ── Planner — all hooks live here ────────────────────────────────────────────
 
-function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: () => void; onNavigateLists: () => void }) {
+function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   const [weekStart, setWeekStart] = useState(() => getWeekSunday(new Date()));
   const weekKey = useMemo(() => getWeekKey(weekStart), [weekStart]);
   const currentWeekSunday = useMemo(() => getWeekSunday(new Date()), []);
@@ -323,8 +314,8 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
     return total === 0 ? 0 : Math.round((done / total) * 100);
   }, [tasks]);
 
-  // Unscheduled tasks (no startTime) — the task bank.
-  const bankTasks = useMemo(() => tasks.filter(t => !t.startTime), [tasks]);
+  // Unscheduled, not-yet-done tasks (no startTime) — the task bank.
+  const bankTasks = useMemo(() => tasks.filter(t => !t.startTime && t.status !== 'green'), [tasks]);
 
   // Scheduled tasks (have startTime), bucketed by day — isDaily tasks appear
   // in every day column with an independently-clickable status per day.
@@ -616,21 +607,14 @@ function Planner({ onNavigateAcademic, onNavigateLists }: { onNavigateAcademic: 
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-base"
             >
               {plannerView === 'calendar' ? <LayoutList size={14} /> : <CalendarRange size={14} />}
-              <span>{plannerView === 'calendar' ? 'תצוגת רשימה' : 'תצוגת יומן'}</span>
-            </button>
-            <button
-              onClick={onNavigateLists}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-base"
-            >
-              <ListTodo size={14} />
-              <span>רשימות</span>
+              <span>{plannerView === 'calendar' ? 'List View' : 'Calendar View'}</span>
             </button>
             <button
               onClick={onNavigateAcademic}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-base"
             >
               <GraduationCap size={14} />
-              <span>לוח אקדמי</span>
+              <span>Academic Board</span>
             </button>
           </div>
         </div>

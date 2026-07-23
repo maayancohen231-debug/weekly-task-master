@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, ArrowRight, CalendarDays, GraduationCap } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, CalendarDays, GraduationCap } from 'lucide-react';
 
 const STORAGE_KEY = 'academic-board-data';
 
@@ -18,14 +18,14 @@ interface AcademicData {
 
 const DEFAULT_DATA: AcademicData = {
   courses: [
-    { id: 'c1', name: 'קורס 1' },
-    { id: 'c2', name: 'קורס 2' },
-    { id: 'c3', name: 'קורס 3' },
+    { id: 'c1', name: 'Course 1' },
+    { id: 'c2', name: 'Course 2' },
+    { id: 'c3', name: 'Course 3' },
   ],
   rows: [
-    { id: 'r1', label: 'שיעור 1' },
-    { id: 'r2', label: 'שיעור 2' },
-    { id: 'r3', label: 'תרגיל 1' },
+    { id: 'r1', label: 'Lesson 1' },
+    { id: 'r2', label: 'Lesson 2' },
+    { id: 'r3', label: 'Exercise 1' },
   ],
   cells: {},
   events: [],
@@ -105,7 +105,7 @@ export function AcademicBoard({ onBack }: Props) {
 
   // ── Courses ──────────────────────────────────────────────────────
   const addCourse = () => {
-    setData(d => ({ ...d, courses: [...d.courses, { id: genId(), name: `קורס ${d.courses.length + 1}` }] }));
+    setData(d => ({ ...d, courses: [...d.courses, { id: genId(), name: `Course ${d.courses.length + 1}` }] }));
   };
 
   const deleteCourse = (courseId: string) => {
@@ -125,7 +125,7 @@ export function AcademicBoard({ onBack }: Props) {
 
   // ── Rows ─────────────────────────────────────────────────────────
   const addRow = () => {
-    setData(d => ({ ...d, rows: [...d.rows, { id: genId(), label: `שורה ${d.rows.length + 1}` }] }));
+    setData(d => ({ ...d, rows: [...d.rows, { id: genId(), label: `Row ${d.rows.length + 1}` }] }));
   };
 
   const deleteRow = (rowId: string) => {
@@ -162,7 +162,7 @@ export function AcademicBoard({ onBack }: Props) {
   };
 
   return (
-    <div dir="rtl" className="min-h-screen bg-background text-foreground font-sans flex flex-col">
+    <div className="min-h-screen bg-background text-foreground font-sans flex flex-col">
       {/* Accent strip */}
       <div className="h-1 w-full shrink-0" style={{ background: 'hsl(340 60% 80%)' }} />
 
@@ -173,12 +173,12 @@ export function AcademicBoard({ onBack }: Props) {
             onClick={onBack}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-base text-sm"
           >
-            <ArrowRight size={16} />
-            <span>חזרה</span>
+            <ArrowLeft size={16} />
+            <span>Back</span>
           </button>
           <div className="flex items-center gap-2">
             <GraduationCap size={20} className="text-primary" />
-            <h1 className="text-lg font-bold text-foreground tracking-tight">לוח אקדמי</h1>
+            <h1 className="text-lg font-bold text-foreground tracking-tight">Academic Board</h1>
           </div>
         </div>
       </header>
@@ -192,12 +192,12 @@ export function AcademicBoard({ onBack }: Props) {
               <thead>
                 <tr className="border-b border-border bg-secondary/40">
                   {/* Label column header */}
-                  <th className="sticky right-0 bg-secondary/40 z-10 px-4 py-3 text-right font-semibold text-muted-foreground min-w-[180px] border-l border-border">
-                    סוג משימה
+                  <th className="sticky left-0 bg-secondary/40 z-10 px-4 py-3 text-left font-semibold text-muted-foreground min-w-[180px] border-r border-border">
+                    Task Type
                   </th>
 
                   {data.courses.map(course => (
-                    <th key={course.id} className="px-3 py-2 text-center font-semibold text-foreground min-w-[130px] border-l border-border/50 group">
+                    <th key={course.id} className="px-3 py-2 text-center font-semibold text-foreground min-w-[130px] border-r border-border/50 group">
                       <div className="flex items-center justify-center gap-1">
                         {editingCourseId === course.id ? (
                           <input
@@ -206,14 +206,13 @@ export function AcademicBoard({ onBack }: Props) {
                             onChange={e => setEditValue(e.target.value)}
                             onBlur={commitCourse}
                             onKeyDown={e => { if (e.key === 'Enter') commitCourse(); }}
-                            dir="rtl"
                             className="w-full text-center bg-background border border-primary/30 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary/30"
                           />
                         ) : (
                           <span
                             onClick={() => { setEditingCourseId(course.id); setEditValue(course.name); }}
                             className="cursor-pointer hover:text-primary transition-base px-1"
-                            title="לחץ לעריכה"
+                            title="Click to edit"
                           >
                             {course.name}
                           </span>
@@ -229,13 +228,13 @@ export function AcademicBoard({ onBack }: Props) {
                   ))}
 
                   {/* Add course */}
-                  <th className="px-3 py-2 text-right">
+                  <th className="px-3 py-2 text-left">
                     <button
                       onClick={addCourse}
                       className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 rounded-lg transition-base whitespace-nowrap"
                     >
                       <Plus size={13} />
-                      הוסף קורס
+                      Add Course
                     </button>
                   </th>
                 </tr>
@@ -248,7 +247,7 @@ export function AcademicBoard({ onBack }: Props) {
                   return (
                     <tr key={row.id} className={`border-b border-border/50 group/row ${rowBg}`}>
                       {/* Row label */}
-                      <td className={`sticky right-0 z-10 px-4 py-3 border-l border-border ${rowBg}`}>
+                      <td className={`sticky left-0 z-10 px-4 py-3 border-r border-border ${rowBg}`}>
                         <div className="flex items-center justify-between gap-2">
                           {editingRowId === row.id ? (
                             <input
@@ -257,14 +256,13 @@ export function AcademicBoard({ onBack }: Props) {
                               onChange={e => setEditValue(e.target.value)}
                               onBlur={commitRow}
                               onKeyDown={e => { if (e.key === 'Enter') commitRow(); }}
-                              dir="rtl"
                               className="flex-1 bg-background border border-primary/30 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary/30"
                             />
                           ) : (
                             <span
                               onClick={() => { setEditingRowId(row.id); setEditValue(row.label); }}
                               className="flex-1 text-sm font-medium text-foreground cursor-pointer hover:text-primary transition-base"
-                              title="לחץ לעריכה"
+                              title="Click to edit"
                             >
                               {row.label}
                             </span>
@@ -286,7 +284,7 @@ export function AcademicBoard({ onBack }: Props) {
                           <td
                             key={course.id}
                             onClick={() => cycleCell(row.id, course.id)}
-                            className={`px-3 py-3 text-center border-l border-border/50 cursor-pointer transition-base hover:brightness-95 select-none ${CELL_BG[state]}`}
+                            className={`px-3 py-3 text-center border-r border-border/50 cursor-pointer transition-base hover:brightness-95 select-none ${CELL_BG[state]}`}
                           >
                             <div className="flex items-center justify-center h-5">
                               <CellIcon state={state} />
@@ -308,18 +306,18 @@ export function AcademicBoard({ onBack }: Props) {
             className="w-full px-4 py-3 text-sm text-muted-foreground/50 hover:text-foreground hover:bg-muted/20 transition-base flex items-center gap-2 justify-center border-t border-border/50"
           >
             <Plus size={14} />
-            הוסף שורה
+            Add Row
           </button>
         </div>
 
         {/* Legend */}
         <div className="flex flex-wrap items-center gap-5 text-xs text-muted-foreground px-1">
-          <span className="font-semibold text-foreground/60">מקרא:</span>
+          <span className="font-semibold text-foreground/60">Legend:</span>
           {[
-            { state: 'empty' as CellState, label: 'לא התחיל' },
-            { state: 'done' as CellState, label: 'הושלם' },
-            { state: 'delayed' as CellState, label: 'מעוכב' },
-            { state: 'cancelled' as CellState, label: 'בוטל' },
+            { state: 'empty' as CellState, label: 'Not started' },
+            { state: 'done' as CellState, label: 'Done' },
+            { state: 'delayed' as CellState, label: 'Delayed' },
+            { state: 'cancelled' as CellState, label: 'Cancelled' },
           ].map(({ state, label }) => (
             <div key={state} className="flex items-center gap-1.5">
               <span className={`w-6 h-6 rounded border border-border/60 inline-flex items-center justify-center ${CELL_BG[state]}`}>
@@ -328,15 +326,15 @@ export function AcademicBoard({ onBack }: Props) {
               <span>{label}</span>
             </div>
           ))}
-          <span className="text-muted-foreground/40 mr-2">• לחץ על תא למעבר בין מצבים</span>
-          <span className="text-muted-foreground/40">• לחץ על שם קורס/שורה לעריכה</span>
+          <span className="text-muted-foreground/40 ml-2">• Click a cell to cycle through states</span>
+          <span className="text-muted-foreground/40">• Click a course/row name to edit it</span>
         </div>
 
         {/* ── Upcoming Events ──────────────────────────────────── */}
         <div className="bg-card rounded-2xl shadow-card p-5 max-w-md">
           <div className="flex items-center gap-2 mb-4">
             <CalendarDays size={16} className="text-primary" />
-            <h2 className="text-sm font-bold text-foreground">אירועים קרובים</h2>
+            <h2 className="text-sm font-bold text-foreground">Upcoming Events</h2>
           </div>
 
           {/* Add form */}
@@ -346,8 +344,7 @@ export function AcademicBoard({ onBack }: Props) {
               value={newEventName}
               onChange={e => setNewEventName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && addEvent()}
-              placeholder="שם האירוע..."
-              dir="rtl"
+              placeholder="Event name..."
               className="flex-1 px-3 py-2 text-sm bg-muted/60 rounded-xl border-none focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/40"
             />
             <input
@@ -369,7 +366,7 @@ export function AcademicBoard({ onBack }: Props) {
           {/* Events list */}
           <div className="space-y-1">
             {sortedEvents.length === 0 && (
-              <p className="text-xs text-muted-foreground/40 text-center py-4">אין אירועים עדיין</p>
+              <p className="text-xs text-muted-foreground/40 text-center py-4">No events yet</p>
             )}
             {sortedEvents.map(event => (
               <div
