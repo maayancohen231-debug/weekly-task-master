@@ -1,5 +1,14 @@
 import type { TaskStatus, TaskColor } from './task-types';
 
+/** "#rrggbb" -> "rgba(r,g,b,alpha)", falling back to a neutral gray if missing/invalid. */
+export function hexToRgba(hex: string | undefined, alpha: number): string {
+  const match = hex?.match(/^#?([0-9a-f]{6})$/i);
+  if (!match) return `rgba(120,120,120,${alpha})`;
+  const int = parseInt(match[1], 16);
+  const r = (int >> 16) & 255, g = (int >> 8) & 255, b = int & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 export const statusClasses: Record<TaskStatus, string> = {
   none: 'bg-card',
   green: 'bg-[hsl(var(--status-green-bg))]',

@@ -1,5 +1,6 @@
 import { Lock } from 'lucide-react';
 import type { GCalBusyEvent } from '@/services/googleCalendar';
+import { hexToRgba } from '@/lib/task-styles';
 
 interface GCalBusyBlockProps {
   event: GCalBusyEvent;
@@ -13,15 +14,6 @@ interface GCalBusyBlockProps {
 function formatEventTime(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-}
-
-/** "#rrggbb" -> "rgba(r,g,b,alpha)", falling back to a neutral gray if missing/invalid. */
-function hexToRgba(hex: string | undefined, alpha: number): string {
-  const match = hex?.match(/^#?([0-9a-f]{6})$/i);
-  if (!match) return `rgba(120,120,120,${alpha})`;
-  const int = parseInt(match[1], 16);
-  const r = (int >> 16) & 255, g = (int >> 8) & 255, b = int & 255;
-  return `rgba(${r},${g},${b},${alpha})`;
 }
 
 export function GCalBusyBlock({ event, top, height, left, width, zIndex = 5 }: GCalBusyBlockProps) {

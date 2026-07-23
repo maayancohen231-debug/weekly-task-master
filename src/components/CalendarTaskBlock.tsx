@@ -1,12 +1,12 @@
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { Trash2, Repeat, Palette, Clock, CalendarClock } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Task, TaskColor } from '@/lib/task-types';
 import { TASK_COLORS } from '@/lib/task-types';
-import { statusClasses, statusBorderClasses, colorDotClasses, colorBorderOverrides } from '@/lib/task-styles';
+import { colorDotClasses, colorBorderOverrides, colorBgTint, hexToRgba } from '@/lib/task-styles';
 import { PX_PER_MINUTE, timeToMinutes, minutesToTime } from '@/lib/calendar-grid';
-import type { GCalCalendar } from '@/services/googleCalendar';
+import { matchCalendarName, type GCalCalendar } from '@/services/googleCalendar';
 
 const MIN_DURATION_MINUTES = 15;
 const RESIZE_SNAP_MINUTES = 15;
@@ -41,6 +41,17 @@ export function CalendarTaskBlock({
   const compact = displayHeight < 40;
   const endTime = task.startTime ? minutesToTime(timeToMinutes(task.startTime) + (task.durationMinutes ?? 30)) : undefined;
 
+  // A scheduled task should look like a calendar event (colored by its Google
+  // Calendar), not a todo item — the checkbox/status look stays in the task
+  // table (List View). Resolve the same calendar a sync would pick, so the
+  // color matches even before the task has actually been synced yet.
+  const resolvedCalendar = useMemo(() => {
+    if (!calendars || calendars.length === 0) return undefined;
+    if (task.calendarId) return calendars.find(c => c.id === task.calendarId);
+    return matchCalendarName(task.content, calendars);
+  }, [calendars, task.calendarId, task.content]);
+  const eventColor = resolvedCalendar?.backgroundColor;
+
   const style: React.CSSProperties = isOverlay
     ? { width: 180, height: Math.max(height, 32) }
     : {
@@ -49,6 +60,7 @@ export function CalendarTaskBlock({
       transform: transform ? CSS.Translate.toString(transform) : undefined,
       opacity: isDragging ? 0.35 : 1,
       zIndex: isDragging || resizeDeltaPx !== null ? 100 : zIndex,
+      ...(eventColor ? { backgroundColor: hexToRgba(eventColor, 0.85), borderLeft: `3px solid ${eventColor}` } : {}),
     };
 
   const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -86,16 +98,15 @@ export function CalendarTaskBlock({
       {...attributes}
       {...listeners}
       onClick={() => onCycleStatus(task.id)}
-      className={`group ${isOverlay ? '' : 'absolute'} rounded-lg border px-2 py-1 cursor-grab active:cursor-grabbing transition-base ${statusClasses[task.status]} ${statusBorderClasses[task.status]} ${colorBorderOverrides[taskColor]} ${
-        isOverlay ? 'shadow-overlay scale-[1.02]' : 'shadow-sm-custom hover:shadow-hover'
-      }`}
+      className={`group ${isOverlay ? '' : 'absolute'} rounded-lg border border-border/40 px-2 py-1 cursor-grab active:cursor-grabbing transition-base ${
+        eventColor ? '' : taskColor !== 'none' ? `${colorBgTint[taskColor]} ${colorBorderOverrides[taskColor]}` : 'bg-card border-l-[3px] border-l-border/50'
+      } ${isOverlay ? 'shadow-overlay scale-[1.02]' : 'shadow-sm-custom hover:shadow-hover'}`}
     >
       <div className="overflow-hidden">
         <div className="flex items-center gap-1 min-w-0">
-          {task.isDaily && <Repeat size={9} className="shrink-0 text-primary/50" />}
-          {taskColor !== 'none' && <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${colorDotClasses[taskColor]}`} />}
+          {task.isDaily && <Repeat size={9} className="shrink-0 text-foreground/50" />}
           {isSynced && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[hsl(var(--task-blue))]" title="Synced to Google Calendar" />}
-          <p className={`flex-1 min-w-0 text-[11px] font-medium leading-tight truncate ${task.status === 'green' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+          <p className={`flex-1 min-w-0 text-[11px] font-medium leading-tight truncate ${task.status === 'green' ? 'line-through text-foreground/50' : 'text-foreground/90'}`}>
             {task.content}
           </p>
         </div>

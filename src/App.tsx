@@ -73,27 +73,67 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
 const STORAGE_KEY = 'weekly-planner-data';
 const DAY_IDS = DAYS.map(d => d.id);
 
+interface DailyGoalName {
+  id: string;
+  name: string;
+}
+
 interface StorageData {
   tasksByWeek: Record<string, Task[]>;
   goalsByWeek: Record<string, WeeklyGoal[]>;
-  dailyGoalsByWeek: Record<string, DailyGoal[]>;
+  /** The daily-goal checklist itself — shared across every week, not per-week. */
+  dailyGoalNames: DailyGoalName[];
+  /** Per-week completion state: weekKey -> goalId -> dayId -> done. */
+  dailyGoalDoneByWeek: Record<string, Record<string, Record<string, boolean>>>;
   libraryTasks: LibraryTask[];
+}
+
+/**
+ * Daily goals used to be stored per-week (dailyGoalsByWeek: DailyGoal[] with
+ * embedded doneByDay), which meant the checklist itself reset every week.
+ * Migrate old data into a shared goal-name list plus per-week done state,
+ * de-duplicating goals across weeks by name.
+ */
+function migrateDailyGoals(parsed: Partial<StorageData> & { dailyGoalsByWeek?: Record<string, DailyGoal[]> }): {
+  dailyGoalNames: DailyGoalName[];
+  dailyGoalDoneByWeek: Record<string, Record<string, Record<string, boolean>>>;
+} {
+  if (!parsed.dailyGoalsByWeek) {
+    return { dailyGoalNames: parsed.dailyGoalNames ?? [], dailyGoalDoneByWeek: parsed.dailyGoalDoneByWeek ?? {} };
+  }
+  const nameToId = new Map<string, string>();
+  const dailyGoalNames: DailyGoalName[] = [];
+  const dailyGoalDoneByWeek: Record<string, Record<string, Record<string, boolean>>> = {};
+
+  for (const [weekKey, weekGoals] of Object.entries(parsed.dailyGoalsByWeek)) {
+    for (const g of weekGoals) {
+      let id = nameToId.get(g.name);
+      if (!id) {
+        id = g.id;
+        nameToId.set(g.name, id);
+        dailyGoalNames.push({ id, name: g.name });
+      }
+      dailyGoalDoneByWeek[weekKey] ??= {};
+      dailyGoalDoneByWeek[weekKey][id] = { ...dailyGoalDoneByWeek[weekKey][id], ...g.doneByDay };
+    }
+  }
+  return { dailyGoalNames, dailyGoalDoneByWeek };
 }
 
 function loadStorage(): StorageData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as Partial<StorageData>;
+      const parsed = JSON.parse(raw) as Partial<StorageData> & { dailyGoalsByWeek?: Record<string, DailyGoal[]> };
       return {
         tasksByWeek: parsed.tasksByWeek ?? {},
         goalsByWeek: parsed.goalsByWeek ?? {},
-        dailyGoalsByWeek: parsed.dailyGoalsByWeek ?? {},
+        ...migrateDailyGoals(parsed),
         libraryTasks: parsed.libraryTasks ?? [],
       };
     }
   } catch { /* ignore */ }
-  return { tasksByWeek: {}, goalsByWeek: {}, dailyGoalsByWeek: {}, libraryTasks: [] };
+  return { tasksByWeek: {}, goalsByWeek: {}, dailyGoalNames: [], dailyGoalDoneByWeek: {}, libraryTasks: [] };
 }
 
 function genId(): string {
@@ -152,20 +192,6 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   const [syncedEvents, setSyncedEvents] = useState<Record<string, SyncedEventInfo>>(() => loadSyncedEvents());
   const syncedTaskIds = useMemo(() => new Set(Object.keys(syncedEvents)), [syncedEvents]);
   const [busyEventsByDay, setBusyEventsByDay] = useState<Record<string, GCalBusyEvent[]>>({});
-
-  // Busy events that are themselves the Google Calendar side of a task we already
-  // render as a CalendarTaskBlock — drop them so the same event never shows twice.
-  const syncedGcalEventIds = useMemo(
-    () => new Set(Object.values(syncedEvents).map(info => info.eventId)),
-    [syncedEvents]
-  );
-  const visibleBusyEventsByDay = useMemo(() => {
-    const out: Record<string, GCalBusyEvent[]> = {};
-    for (const [dayId, events] of Object.entries(busyEventsByDay)) {
-      out[dayId] = events.filter(ev => !syncedGcalEventIds.has(ev.id));
-    }
-    return out;
-  }, [busyEventsByDay, syncedGcalEventIds]);
 
   // Silent token refresh — only if a token already exists (even expired)
   useEffect(() => {
@@ -240,8 +266,39 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   }, [weekKey, gcalConnected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tasks = useMemo(() => storageData.tasksByWeek[weekKey] ?? [], [storageData, weekKey]);
+
+  // Busy events that are themselves the Google Calendar side of a task we already
+  // render as a CalendarTaskBlock — drop them so the same event never shows twice.
+  // Only trust syncedEvents entries that still map to a real, currently-scheduled
+  // task: e.g. "Load Sample Data" replaces the task list without touching the
+  // separate synced-events store, and a leftover stale mapping must never hide a
+  // real, unrelated Google Calendar event.
+  const activeSyncedGcalEventIds = useMemo(() => {
+    const activeSyncKeys = new Set<string>();
+    tasks.forEach(t => {
+      if (!t.startTime) return;
+      if (t.isDaily) DAYS.forEach(d => activeSyncKeys.add(`${t.id}_${d.id}`));
+      else activeSyncKeys.add(t.id);
+    });
+    const ids = new Set<string>();
+    for (const [key, info] of Object.entries(syncedEvents)) {
+      if (activeSyncKeys.has(key)) ids.add(info.eventId);
+    }
+    return ids;
+  }, [tasks, syncedEvents]);
+
+  const visibleBusyEventsByDay = useMemo(() => {
+    const out: Record<string, GCalBusyEvent[]> = {};
+    for (const [dayId, events] of Object.entries(busyEventsByDay)) {
+      out[dayId] = events.filter(ev => !activeSyncedGcalEventIds.has(ev.id));
+    }
+    return out;
+  }, [busyEventsByDay, activeSyncedGcalEventIds]);
   const goals = useMemo(() => storageData.goalsByWeek[weekKey] ?? [], [storageData, weekKey]);
-  const dailyGoals = useMemo(() => storageData.dailyGoalsByWeek[weekKey] ?? [], [storageData, weekKey]);
+  const dailyGoals = useMemo(() => {
+    const doneForWeek = storageData.dailyGoalDoneByWeek[weekKey] ?? {};
+    return storageData.dailyGoalNames.map(g => ({ id: g.id, name: g.name, doneByDay: doneForWeek[g.id] ?? {} }));
+  }, [storageData, weekKey]);
   const libraryTasks = storageData.libraryTasks;
 
   useEffect(() => {
@@ -262,10 +319,13 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     }));
   }, [weekKey]);
 
-  const setDailyGoals = useCallback((updater: (prev: DailyGoal[]) => DailyGoal[]) => {
+  const setDailyGoalNames = useCallback((updater: (prev: DailyGoalName[]) => DailyGoalName[]) => {
+    setStorageData(prev => ({ ...prev, dailyGoalNames: updater(prev.dailyGoalNames) }));
+  }, []);
+  const setDailyGoalDoneForWeek = useCallback((updater: (prev: Record<string, Record<string, boolean>>) => Record<string, Record<string, boolean>>) => {
     setStorageData(prev => ({
       ...prev,
-      dailyGoalsByWeek: { ...prev.dailyGoalsByWeek, [weekKey]: updater(prev.dailyGoalsByWeek[weekKey] ?? []) },
+      dailyGoalDoneByWeek: { ...prev.dailyGoalDoneByWeek, [weekKey]: updater(prev.dailyGoalDoneByWeek[weekKey] ?? {}) },
     }));
   }, [weekKey]);
 
@@ -521,16 +581,17 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   }, [setGoals]);
 
   const addDailyGoal = useCallback((name: string) => {
-    setDailyGoals(prev => [...prev, { id: genId(), name, doneByDay: {} }]);
-  }, [setDailyGoals]);
+    setDailyGoalNames(prev => [...prev, { id: genId(), name }]);
+  }, [setDailyGoalNames]);
   const deleteDailyGoal = useCallback((id: string) => {
-    setDailyGoals(prev => prev.filter(g => g.id !== id));
-  }, [setDailyGoals]);
+    setDailyGoalNames(prev => prev.filter(g => g.id !== id));
+  }, [setDailyGoalNames]);
   const toggleDailyGoalDay = useCallback((goalId: string, dayId: string) => {
-    setDailyGoals(prev => prev.map(g => g.id === goalId
-      ? { ...g, doneByDay: { ...g.doneByDay, [dayId]: !g.doneByDay[dayId] } }
-      : g));
-  }, [setDailyGoals]);
+    setDailyGoalDoneForWeek(prev => ({
+      ...prev,
+      [goalId]: { ...prev[goalId], [dayId]: !prev[goalId]?.[dayId] },
+    }));
+  }, [setDailyGoalDoneForWeek]);
 
   const navigateWeek = (dir: number) => setWeekStart(prev => {
     const d = new Date(prev); d.setDate(d.getDate() + dir * 7); return d;

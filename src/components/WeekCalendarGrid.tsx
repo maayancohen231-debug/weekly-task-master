@@ -85,7 +85,7 @@ export function WeekCalendarGrid({
         <div className="flex min-w-[860px]">
           {/* Hour axis gutter */}
           <div className="w-14 shrink-0 sticky left-0 bg-card z-10 border-r border-border/40">
-            <div className="h-[56px] flex items-end justify-center pb-1.5 border-b border-border/40">
+            <div className="h-[44px] flex items-end justify-center pb-1.5 border-b border-border/40">
               <span className="text-[9px] font-medium text-muted-foreground/50">{tzLabel}</span>
             </div>
             <div style={{ height: COLUMN_HEIGHT }} className="relative">
@@ -133,7 +133,7 @@ export function WeekCalendarGrid({
 
             return (
               <div key={day.id} className={`flex-1 min-w-[104px] border-r border-border/30 last:border-r-0 ${isToday ? 'bg-primary/[0.03]' : ''}`}>
-                <div className="h-[56px] flex flex-col items-center justify-center gap-0.5 border-b border-border/40">
+                <div className="h-[44px] flex flex-col items-center justify-center gap-0.5 border-b border-border/40">
                   <p className={`text-[10px] font-semibold tracking-wide uppercase ${isToday ? 'text-primary' : 'text-muted-foreground'}`}>
                     {day.label.slice(0, 3)}
                   </p>
