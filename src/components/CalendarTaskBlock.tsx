@@ -1,10 +1,15 @@
 import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { Trash2, Repeat, Palette, Clock } from 'lucide-react';
+import { Trash2, Repeat, Palette, Clock, CalendarClock } from 'lucide-react';
 import { useState } from 'react';
 import type { Task, TaskColor } from '@/lib/task-types';
 import { TASK_COLORS } from '@/lib/task-types';
 import { statusClasses, statusBorderClasses, colorDotClasses, colorBorderOverrides } from '@/lib/task-styles';
+import { PX_PER_MINUTE, timeToMinutes, minutesToTime } from '@/lib/calendar-grid';
+import type { GCalCalendar } from '@/services/googleCalendar';
+
+const MIN_DURATION_MINUTES = 15;
+const RESIZE_SNAP_MINUTES = 15;
 
 interface CalendarTaskBlockProps {
   task: Task;
@@ -15,28 +20,64 @@ interface CalendarTaskBlockProps {
   onDelete: (id: string) => void;
   onCycleStatus: (id: string) => void;
   onSetColor: (id: string, color: TaskColor) => void;
+  onResize?: (id: string, durationMinutes: number) => void;
+  calendars?: GCalCalendar[];
+  onSetCalendar?: (id: string, calendarId: string) => void;
   isSynced?: boolean;
   isOverlay?: boolean;
   zIndex?: number;
 }
 
 export function CalendarTaskBlock({
-  task, top, height, left, width, onDelete, onCycleStatus, onSetColor, isSynced = false, isOverlay = false, zIndex = 5,
+  task, top, height, left, width, onDelete, onCycleStatus, onSetColor, onResize, calendars, onSetCalendar,
+  isSynced = false, isOverlay = false, zIndex = 5,
 }: CalendarTaskBlockProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+  const [resizeDeltaPx, setResizeDeltaPx] = useState<number | null>(null);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id });
   const taskColor = task.color || 'none';
-  const compact = height < 40;
+  const displayHeight = resizeDeltaPx !== null ? Math.max(20, height + resizeDeltaPx) : height;
+  const compact = displayHeight < 40;
+  const endTime = task.startTime ? minutesToTime(timeToMinutes(task.startTime) + (task.durationMinutes ?? 30)) : undefined;
 
   const style: React.CSSProperties = isOverlay
     ? { width: 180, height: Math.max(height, 32) }
     : {
       position: 'absolute',
-      top, height, left, width,
+      top, height: displayHeight, left, width,
       transform: transform ? CSS.Translate.toString(transform) : undefined,
       opacity: isDragging ? 0.35 : 1,
-      zIndex: isDragging ? 100 : zIndex,
+      zIndex: isDragging || resizeDeltaPx !== null ? 100 : zIndex,
     };
+
+  const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!onResize) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const startY = e.clientY;
+    const startDuration = task.durationMinutes ?? 30;
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
+
+    const handleMove = (ev: PointerEvent) => {
+      setResizeDeltaPx(ev.clientY - startY);
+    };
+    const handleUp = (ev: PointerEvent) => {
+      target.releasePointerCapture(e.pointerId);
+      target.removeEventListener('pointermove', handleMove);
+      target.removeEventListener('pointerup', handleUp);
+      setResizeDeltaPx(null);
+      const deltaMinutes = (ev.clientY - startY) / PX_PER_MINUTE;
+      const snapped = Math.max(
+        MIN_DURATION_MINUTES,
+        Math.round((startDuration + deltaMinutes) / RESIZE_SNAP_MINUTES) * RESIZE_SNAP_MINUTES,
+      );
+      if (snapped !== startDuration) onResize(task.id, snapped);
+    };
+    target.addEventListener('pointermove', handleMove);
+    target.addEventListener('pointerup', handleUp);
+  };
 
   return (
     <div
@@ -61,7 +102,7 @@ export function CalendarTaskBlock({
         {!compact && (
           <p className="flex items-center gap-0.5 text-[10px] text-muted-foreground/60 mt-0.5">
             <Clock size={9} />
-            {task.startTime}
+            {task.startTime}{endTime ? ` – ${endTime}` : ''}
           </p>
         )}
       </div>
@@ -95,6 +136,36 @@ export function CalendarTaskBlock({
             </div>
           )}
         </div>
+        {calendars && calendars.length > 0 && onSetCalendar && (
+          <div className="relative">
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowCalendarPicker(v => !v); }}
+              className="p-0.5 text-muted-foreground/40 hover:text-foreground/70 rounded transition-base"
+              title="Calendar"
+            >
+              <CalendarClock size={11} />
+            </button>
+            {showCalendarPicker && (
+              <div
+                className="absolute right-0 top-full mt-1 z-50 bg-card rounded-xl shadow-overlay border border-border p-1.5 flex flex-col gap-0.5 min-w-[150px] max-h-56 overflow-y-auto scroll-thin"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {calendars.map((cal) => (
+                  <button
+                    key={cal.id}
+                    onClick={() => { onSetCalendar(task.id, cal.id); setShowCalendarPicker(false); }}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] text-left hover:bg-muted transition-base ${
+                      task.calendarId === cal.id ? 'bg-muted font-semibold text-foreground' : 'text-foreground/80'
+                    }`}
+                  >
+                    <span className="shrink-0 w-2 h-2 rounded-full" style={{ backgroundColor: cal.backgroundColor ?? '#999' }} />
+                    <span className="truncate">{cal.summary}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(task.id); }}
           className="p-0.5 text-muted-foreground/40 hover:text-destructive rounded transition-base"
@@ -102,6 +173,17 @@ export function CalendarTaskBlock({
           <Trash2 size={11} />
         </button>
       </div>
+
+      {onResize && !isOverlay && (
+        <div
+          onPointerDown={handleResizeStart}
+          onClick={(e) => e.stopPropagation()}
+          title="Drag to resize"
+          className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 flex items-center justify-center transition-base"
+        >
+          <span className="w-6 h-0.5 rounded-full bg-foreground/30" />
+        </div>
+      )}
     </div>
   );
 }

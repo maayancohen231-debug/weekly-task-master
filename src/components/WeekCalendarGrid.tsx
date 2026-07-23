@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import type { Task, TaskColor } from '@/lib/task-types';
-import type { GCalBusyEvent } from '@/services/googleCalendar';
+import type { GCalBusyEvent, GCalCalendar } from '@/services/googleCalendar';
 import {
   GRID_START_HOUR, GRID_END_HOUR, GRID_HOURS, SLOT_MINUTES, PX_PER_MINUTE, SLOT_TIMES,
   minutesFromGridStart, slotId, layoutOverlaps, clampToGridPx, cascadePosition,
@@ -27,6 +27,9 @@ interface WeekCalendarGridProps {
   onDelete: (id: string) => void;
   onCycleStatus: (id: string) => void;
   onSetColor: (id: string, color: TaskColor) => void;
+  onResize?: (id: string, durationMinutes: number) => void;
+  calendars?: GCalCalendar[];
+  onSetCalendar?: (id: string, calendarId: string) => void;
 }
 
 function SlotCell({ dayId, time }: { dayId: string; time: string }) {
@@ -54,25 +57,43 @@ function eventTimeString(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+/** "GMT+3" / "GMT-5:30" style label for the corner of the time gutter, Google Calendar-style. */
+function timezoneLabel(): string {
+  const offsetMin = -new Date().getTimezoneOffset();
+  const sign = offsetMin >= 0 ? '+' : '-';
+  const abs = Math.abs(offsetMin);
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  return `GMT${sign}${h}${m ? ':' + String(m).padStart(2, '0') : ''}`;
+}
+
+/** Pull the trailing day-of-month digits out of a "Jul 19"-style formatted date. */
+function dayOfMonth(dateStr: string): string {
+  return dateStr.match(/\d+$/)?.[0] ?? dateStr;
+}
+
 export function WeekCalendarGrid({
   days, todayDayId, scheduledTasksByDay, busyEventsByDay, syncedTaskIds,
-  onDelete, onCycleStatus, onSetColor,
+  onDelete, onCycleStatus, onSetColor, onResize, calendars, onSetCalendar,
 }: WeekCalendarGridProps) {
   const nowTop = useMemo(nowIndicatorTop, []);
+  const tzLabel = useMemo(timezoneLabel, []);
 
   return (
     <div className="flex-1 flex bg-card rounded-2xl shadow-card overflow-hidden min-w-0 min-h-0">
       <div className="flex-1 overflow-y-auto overflow-x-auto scroll-thin">
-        <div className="flex min-w-[600px] gap-2 px-1.5">
+        <div className="flex min-w-[860px]">
           {/* Hour axis gutter */}
-          <div className="w-12 shrink-0 sticky left-0 bg-card z-10">
-            <div className="h-[52px] border-b border-border/50" />
+          <div className="w-14 shrink-0 sticky left-0 bg-card z-10 border-r border-border/40">
+            <div className="h-[56px] flex items-end justify-center pb-1.5 border-b border-border/40">
+              <span className="text-[9px] font-medium text-muted-foreground/50">{tzLabel}</span>
+            </div>
             <div style={{ height: COLUMN_HEIGHT }} className="relative">
               {GRID_HOURS.map(hour => (
                 <div
                   key={hour}
                   style={{ top: (hour - GRID_START_HOUR) * 60 * PX_PER_MINUTE }}
-                  className="absolute -translate-y-1/2 right-1.5 text-[10px] text-muted-foreground/60"
+                  className="absolute -translate-y-1/2 right-2 text-[10px] text-muted-foreground/60"
                 >
                   {String(hour).padStart(2, '0')}:00
                 </div>
@@ -111,13 +132,18 @@ export function WeekCalendarGrid({
             const layout = layoutOverlaps(intervals);
 
             return (
-              <div key={day.id} className="flex-1 min-w-[110px] rounded-xl border border-border/40">
-                <div className={`h-[52px] flex flex-col items-center justify-center border-b border-border/40 rounded-t-xl ${isToday ? 'bg-primary/5' : ''}`}>
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-[13px] font-bold text-foreground">{day.label}</p>
-                    {isToday && <span className="w-1.5 h-1.5 rounded-full bg-foreground" />}
-                  </div>
-                  <p className="text-[11px] text-muted-foreground">{day.date}</p>
+              <div key={day.id} className={`flex-1 min-w-[104px] border-r border-border/30 last:border-r-0 ${isToday ? 'bg-primary/[0.03]' : ''}`}>
+                <div className="h-[56px] flex flex-col items-center justify-center gap-0.5 border-b border-border/40">
+                  <p className={`text-[10px] font-semibold tracking-wide uppercase ${isToday ? 'text-primary' : 'text-muted-foreground'}`}>
+                    {day.label.slice(0, 3)}
+                  </p>
+                  <span
+                    className={`flex items-center justify-center w-7 h-7 rounded-full text-[14px] font-bold transition-base ${
+                      isToday ? 'bg-primary text-primary-foreground' : 'text-foreground'
+                    }`}
+                  >
+                    {dayOfMonth(day.date)}
+                  </span>
                 </div>
 
                 <div style={{ height: COLUMN_HEIGHT }} className="relative">
@@ -166,6 +192,9 @@ export function WeekCalendarGrid({
                         onDelete={onDelete}
                         onCycleStatus={onCycleStatus}
                         onSetColor={onSetColor}
+                        onResize={onResize}
+                        calendars={calendars}
+                        onSetCalendar={onSetCalendar}
                         isSynced={syncedTaskIds.has(task.id)}
                       />
                     );

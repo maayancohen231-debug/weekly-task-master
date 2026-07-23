@@ -42,7 +42,7 @@ export function GCalBusyBlock({ event, top, height, left, width, zIndex = 5 }: G
         <span className="text-[11px] leading-tight truncate flex-1 text-foreground/90">{event.title}</span>
       </div>
       {!compact && (
-        <span className="text-[10px] text-muted-foreground">{formatEventTime(event.start)}</span>
+        <span className="text-[10px] text-muted-foreground">{formatEventTime(event.start)} – {formatEventTime(event.end)}</span>
       )}
     </div>
   );

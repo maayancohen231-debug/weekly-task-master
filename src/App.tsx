@@ -153,6 +153,20 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   const syncedTaskIds = useMemo(() => new Set(Object.keys(syncedEvents)), [syncedEvents]);
   const [busyEventsByDay, setBusyEventsByDay] = useState<Record<string, GCalBusyEvent[]>>({});
 
+  // Busy events that are themselves the Google Calendar side of a task we already
+  // render as a CalendarTaskBlock — drop them so the same event never shows twice.
+  const syncedGcalEventIds = useMemo(
+    () => new Set(Object.values(syncedEvents).map(info => info.eventId)),
+    [syncedEvents]
+  );
+  const visibleBusyEventsByDay = useMemo(() => {
+    const out: Record<string, GCalBusyEvent[]> = {};
+    for (const [dayId, events] of Object.entries(busyEventsByDay)) {
+      out[dayId] = events.filter(ev => !syncedGcalEventIds.has(ev.id));
+    }
+    return out;
+  }, [busyEventsByDay, syncedGcalEventIds]);
+
   // Silent token refresh — only if a token already exists (even expired)
   useEffect(() => {
     if (!isConfigured()) return;
@@ -202,7 +216,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       try {
         const rangeStart = new Date(weekStart);
         const rangeEnd = new Date(weekStart);
-        rangeEnd.setDate(rangeEnd.getDate() + 5); // covers sun..thu
+        rangeEnd.setDate(rangeEnd.getDate() + 7); // covers sun..sat
         const events = await fetchWeekEvents(rangeStart.toISOString(), rangeEnd.toISOString());
         if (busyFetchRef.current !== requestId) return; // stale response, a newer week was requested
         const byDay: Record<string, GCalBusyEvent[]> = {};
@@ -424,6 +438,56 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     const realId = getRealId(id);
     setTasks(prev => prev.map(t => t.id === realId ? { ...t, color } : t));
   }, [setTasks]);
+
+  const resizeTask = useCallback((id: string, durationMinutes: number) => {
+    const realId = getRealId(id);
+    const task = tasks.find(t => t.id === realId);
+    if (!task) return;
+    setTasks(prev => prev.map(t => t.id === realId ? { ...t, durationMinutes } : t));
+    if (!task.startTime) return;
+    if (task.isDaily) {
+      DAYS.forEach((d, idx) => {
+        syncTaskToCalendar(`${realId}_${d.id}`, task.content, idx, task.startTime!, durationMinutes, task.calendarId);
+      });
+    } else {
+      const dayIndex = DAYS.findIndex(d => d.id === task.dayId);
+      syncTaskToCalendar(realId, task.content, dayIndex, task.startTime!, durationMinutes, task.calendarId);
+    }
+  }, [tasks, setTasks, syncTaskToCalendar]);
+
+  // Move a scheduled task to a different Google Calendar — deletes the old event
+  // (if any) and recreates it on the newly chosen calendar, since Calendar's API
+  // has no simple "reassign calendar" call for an existing event.
+  const setTaskCalendar = useCallback(async (id: string, calendarId: string) => {
+    const realId = getRealId(id);
+    const task = tasks.find(t => t.id === realId);
+    if (!task) return;
+    setTasks(prev => prev.map(t => t.id === realId ? { ...t, calendarId } : t));
+    if (!task.startTime || !gcalConnected) return;
+
+    const duration = task.durationMinutes ?? 30;
+    const calendarName = calendars.find(c => c.id === calendarId)?.summary ?? '';
+    const keys = task.isDaily ? DAYS.map(d => `${realId}_${d.id}`) : [realId];
+
+    for (const key of keys) {
+      const dayId = task.isDaily ? key.slice(realId.length + 1) : task.dayId;
+      const dayIndex = DAYS.findIndex(d => d.id === dayId);
+      const startDateTime = formatLocalDateTime(weekStart, dayIndex, task.startTime);
+      const existing = syncedEvents[key];
+      try {
+        if (existing) await deleteCalendarEvent(existing.calendarId, existing.eventId);
+        const event = await createCalendarEvent(calendarId, task.content, startDateTime, '', duration);
+        const info: SyncedEventInfo = {
+          eventId: event.id, calendarId, calendarName,
+          htmlLink: event.htmlLink, syncedAt: new Date().toISOString(),
+        };
+        saveSyncedEvent(key, info);
+        setSyncedEvents(prev => ({ ...prev, [key]: info }));
+      } catch (err) {
+        console.error('[App] failed to move task to new calendar:', key, err);
+      }
+    }
+  }, [tasks, setTasks, syncedEvents, calendars, gcalConnected, weekStart]);
 
   const splitTask = useCallback((id: string) => {
     const realId = getRealId(id);
@@ -651,11 +715,14 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 days={DAYS.map((d, i) => ({ id: d.id, label: d.label, date: formatDayDate(weekStart, i) }))}
                 todayDayId={todayDayId}
                 scheduledTasksByDay={scheduledTasksByDay}
-                busyEventsByDay={busyEventsByDay}
+                busyEventsByDay={visibleBusyEventsByDay}
                 syncedTaskIds={syncedTaskIds}
                 onDelete={deleteTask}
                 onCycleStatus={cycleStatus}
                 onSetColor={setTaskColor}
+                onResize={resizeTask}
+                calendars={calendars}
+                onSetCalendar={setTaskCalendar}
               />
             </div>
 

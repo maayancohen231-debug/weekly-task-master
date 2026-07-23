@@ -7,6 +7,8 @@ export const DAYS = [
   { id: 'tue', label: 'Tuesday' },
   { id: 'wed', label: 'Wednesday' },
   { id: 'thu', label: 'Thursday' },
+  { id: 'fri', label: 'Friday' },
+  { id: 'sat', label: 'Saturday' },
 ] as const;
 
 export interface Task {
@@ -55,7 +57,7 @@ export const TASK_COLORS: { id: TaskColor; label: string }[] = [
   { id: 'teal', label: 'Teal' },
 ];
 
-export const DAY_INDEX_TO_ID: Record<number, string> = { 0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu' };
+export const DAY_INDEX_TO_ID: Record<number, string> = { 0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat' };
 
 export function nextStatus(status: TaskStatus): TaskStatus {
   const cycle: TaskStatus[] = ['none', 'green', 'yellow', 'red'];
@@ -106,7 +108,7 @@ export function formatLocalDateTime(weekStart: Date, dayIndex: number, time: str
   return `${y}-${m}-${day}T${time}`;
 }
 
-/** Map a real Date to a day id (sun..thu) within the given week, or null if outside the visible range. */
+/** Map a real Date to a day id (sun..sat) within the given week, or null if outside the visible range. */
 export function getDayIdForDate(date: Date, weekStart: Date): string | null {
   const start = new Date(weekStart);
   start.setHours(0, 0, 0, 0);
