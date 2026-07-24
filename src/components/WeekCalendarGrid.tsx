@@ -30,6 +30,7 @@ interface WeekCalendarGridProps {
   onResize?: (id: string, durationMinutes: number) => void;
   calendars?: GCalCalendar[];
   onSetCalendar?: (id: string, calendarId: string) => void;
+  onDeleteBusyEvent?: (event: GCalBusyEvent) => void;
 }
 
 function SlotCell({ dayId, time }: { dayId: string; time: string }) {
@@ -74,7 +75,7 @@ function dayOfMonth(dateStr: string): string {
 
 export function WeekCalendarGrid({
   days, todayDayId, scheduledTasksByDay, busyEventsByDay, syncedTaskIds,
-  onDelete, onCycleStatus, onSetColor, onResize, calendars, onSetCalendar,
+  onDelete, onCycleStatus, onSetColor, onResize, calendars, onSetCalendar, onDeleteBusyEvent,
 }: WeekCalendarGridProps) {
   const nowTop = useMemo(nowIndicatorTop, []);
   const tzLabel = useMemo(timezoneLabel, []);
@@ -170,6 +171,7 @@ export function WeekCalendarGrid({
                         left={`${leftPct}%`}
                         width={`${widthPct}%`}
                         zIndex={z}
+                        onDelete={onDeleteBusyEvent}
                       />
                     );
                   })}

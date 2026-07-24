@@ -98,6 +98,7 @@ export function CalendarTaskBlock({
       {...attributes}
       {...listeners}
       onClick={() => onCycleStatus(task.id)}
+      title={task.content}
       className={`group ${isOverlay ? '' : 'absolute'} rounded-lg border border-border/40 px-2 py-1 cursor-grab active:cursor-grabbing transition-base ${
         eventColor ? '' : taskColor !== 'none' ? `${colorBgTint[taskColor]} ${colorBorderOverrides[taskColor]}` : 'bg-card border-l-[3px] border-l-border/50'
       } ${isOverlay ? 'shadow-overlay scale-[1.02]' : 'shadow-sm-custom hover:shadow-hover'}`}

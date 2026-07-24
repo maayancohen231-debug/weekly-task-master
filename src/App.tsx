@@ -412,15 +412,22 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
 
   // ── Google Calendar auto-sync ────────────────────────────────────────────
 
+  // Keys currently being created/updated — lets the backfill reconciler below
+  // tell "not synced yet" apart from "sync already in flight", so it never
+  // fires a second, duplicate create for the same task while the first request
+  // is still pending.
+  const pendingSyncRef = useRef<Set<string>>(new Set());
+
   const syncTaskToCalendar = useCallback(async (
     syncKey: string, content: string, dayIndex: number, time: string, duration: number, existingCalendarId?: string,
   ) => {
     if (!gcalConnected || calendars.length === 0) return;
     const calendarId = existingCalendarId ?? matchCalendarName(content, calendars)?.id;
     if (!calendarId) return;
-    const startDateTime = formatLocalDateTime(weekStart, dayIndex, time);
-    const existing = syncedEvents[syncKey];
+    pendingSyncRef.current.add(syncKey);
     try {
+      const startDateTime = formatLocalDateTime(weekStart, dayIndex, time);
+      const existing = syncedEvents[syncKey];
       if (existing) {
         await updateCalendarEvent(existing.calendarId, existing.eventId, startDateTime, duration);
         const info: SyncedEventInfo = { ...existing, syncedAt: new Date().toISOString() };
@@ -438,6 +445,8 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       }
     } catch (err) {
       console.error('[App] auto-sync failed:', syncKey, err);
+    } finally {
+      pendingSyncRef.current.delete(syncKey);
     }
   }, [gcalConnected, calendars, weekStart, syncedEvents]);
 
@@ -453,6 +462,37 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     });
   }, [syncedEvents]);
 
+  // Backfill sync for scheduled tasks that don't have a Google Calendar event
+  // yet — covers two real gaps: (1) recurring daily tasks that got auto-copied
+  // into a newly-visited week (the auto-populate effect above only touches
+  // local state, it never calls syncTaskToCalendar), and (2) tasks that were
+  // scheduled while Calendar wasn't connected and never got a retroactive sync
+  // once the user connected. Purely additive — it only ever creates missing
+  // events, never deletes, so a transient computation glitch here can't wipe
+  // a real synced event (deletion stays explicit: deleteTask / toggleDaily /
+  // drag-to-bank).
+  useEffect(() => {
+    if (!gcalConnected || calendars.length === 0) return;
+    tasks.forEach(t => {
+      if (!t.startTime) return;
+      const duration = t.durationMinutes ?? 30;
+      if (t.isDaily) {
+        DAYS.forEach((d, idx) => {
+          const key = `${t.id}_${d.id}`;
+          if (!syncedEvents[key] && !pendingSyncRef.current.has(key)) {
+            syncTaskToCalendar(key, t.content, idx, t.startTime!, duration, t.calendarId);
+          }
+        });
+      } else {
+        const key = t.id;
+        if (!syncedEvents[key] && !pendingSyncRef.current.has(key)) {
+          const dayIndex = DAYS.findIndex(d => d.id === t.dayId);
+          syncTaskToCalendar(key, t.content, dayIndex, t.startTime!, duration, t.calendarId);
+        }
+      }
+    });
+  }, [tasks, gcalConnected, calendars, syncedEvents, syncTaskToCalendar]);
+
   // ── Task mutations ───────────────────────────────────────────────────────
 
   const addUnscheduledTask = useCallback(async (text: string) => {
@@ -463,6 +503,19 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       status: 'none', color: 'none', dayId: DAY_IDS[0], isDaily: false, sortOrder: prev.length,
     }]);
   }, [setTasks]);
+
+  // Deletes the real Google Calendar event behind a read-only "busy" block
+  // (an event pulled straight from Google Calendar, not created by this app —
+  // these previously had no delete affordance at all).
+  const deleteBusyEvent = useCallback((ev: GCalBusyEvent) => {
+    if (!confirm(`Delete "${ev.title}" from Google Calendar? This can't be undone.`)) return;
+    deleteCalendarEvent(ev.calendarId, ev.id).catch(() => {});
+    setBusyEventsByDay(prev => {
+      const next: Record<string, GCalBusyEvent[]> = {};
+      for (const [dayId, events] of Object.entries(prev)) next[dayId] = events.filter(e => e.id !== ev.id);
+      return next;
+    });
+  }, []);
 
   const deleteTask = useCallback((id: string) => {
     const realId = getRealId(id);
@@ -489,10 +542,31 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     setTasks(prev => prev.map(t => t.id === id ? { ...t, status: nextStatus(t.status) } : t));
   }, [setTasks]);
 
+  // Toggling isDaily changes which sync-key scheme the task's calendar events
+  // live under (single `realId` key for a one-off task vs. one `realId_dayId`
+  // key per day for a daily task) — flip the flag and migrate the synced
+  // events to match, otherwise the old key's event is orphaned (and reappears
+  // as a duplicate "busy" block) while the new keys never get created.
   const toggleDaily = useCallback((id: string) => {
     const realId = getRealId(id);
-    setTasks(prev => prev.map(t => t.id === realId ? { ...t, isDaily: !t.isDaily } : t));
-  }, [setTasks]);
+    const task = tasks.find(t => t.id === realId);
+    if (!task) return;
+    const turningOn = !task.isDaily;
+    setTasks(prev => prev.map(t => t.id === realId ? { ...t, isDaily: turningOn } : t));
+    if (!task.startTime) return;
+
+    const duration = task.durationMinutes ?? 30;
+    if (turningOn) {
+      removeSyncedEvents([realId]);
+      DAYS.forEach((d, idx) => {
+        syncTaskToCalendar(`${realId}_${d.id}`, task.content, idx, task.startTime!, duration, task.calendarId);
+      });
+    } else {
+      removeSyncedEvents(DAYS.map(d => `${realId}_${d.id}`));
+      const dayIndex = DAYS.findIndex(d => d.id === task.dayId);
+      syncTaskToCalendar(realId, task.content, dayIndex, task.startTime!, duration, task.calendarId);
+    }
+  }, [tasks, setTasks, removeSyncedEvents, syncTaskToCalendar]);
 
   const setTaskColor = useCallback((id: string, color: TaskColor) => {
     const realId = getRealId(id);
@@ -784,6 +858,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 onResize={resizeTask}
                 calendars={calendars}
                 onSetCalendar={setTaskCalendar}
+                onDeleteBusyEvent={deleteBusyEvent}
               />
             </div>
 
