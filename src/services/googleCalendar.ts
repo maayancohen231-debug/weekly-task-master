@@ -249,8 +249,17 @@ export async function connectPersistent(): Promise<GCalToken> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code, origin: window.location.origin }),
   });
+  if (!res.ok) {
+    // The server-side piece (GOOGLE_CLIENT_SECRET) isn't configured yet —
+    // don't leave "Connect Calendar" completely broken while that's pending.
+    // Fall back to the classic implicit flow, which needs no server secret,
+    // so the button keeps working today; once the secret is set, this
+    // branch stops being hit and connections upgrade to the persistent flow.
+    const data = await res.json().catch(() => ({}));
+    console.warn('[googleCalendar] persistent connect unavailable, falling back to session-only connect:', data.error);
+    return requestToken('consent');
+  }
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? 'Token exchange failed');
 
   if (data.refresh_token) storeRefreshToken(data.refresh_token);
   return storeToken({ access_token: data.access_token, expires_in: data.expires_in ?? 3600 });
