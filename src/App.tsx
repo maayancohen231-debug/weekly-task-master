@@ -5,7 +5,7 @@ import {
   defaultDropAnimationSideEffects,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar, AlertTriangle, X } from 'lucide-react';
 import { AcademicBoard } from '@/components/AcademicBoard';
 import { forceSeedData } from '@/lib/seed';
 import {
@@ -213,6 +213,10 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   const [syncedEvents, setSyncedEvents] = useState<Record<string, SyncedEventInfo>>(() => loadSyncedEvents());
   const syncedTaskIds = useMemo(() => new Set(Object.keys(syncedEvents)), [syncedEvents]);
   const [busyEventsByDay, setBusyEventsByDay] = useState<Record<string, GCalBusyEvent[]>>({});
+  // Surfaces the actual fetch failure in the UI — sync failures were
+  // previously only ever logged to the console, which is unreachable on a
+  // phone, making them impossible to diagnose without a laptop in hand.
+  const [gcalSyncError, setGcalSyncError] = useState<string | null>(null);
 
   // Silent token refresh. Prefers the persistent refresh-token flow (a plain
   // server call, no popup, no third-party-cookie dependency) over the old
@@ -250,12 +254,15 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     try {
       await connectPersistent();
       setGcalConnected(true);
-    } catch (err) {
+      setGcalSyncError(null);
+    } catch (err: any) {
       console.error('Google Calendar connect failed:', err);
+      setGcalSyncError(`Couldn't connect to Google Calendar: ${err?.message ?? err}`);
     }
   };
 
   const handleDisconnectCalendar = () => {
+    setGcalSyncError(null);
     clearAllTokens();
     setGcalConnected(false);
   };
@@ -289,11 +296,15 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   // auto-matched to a calendar without prompting.
   useEffect(() => {
     if (!gcalConnected) { setCalendars([]); return; }
-    fetchCalendars().then(setCalendars).catch(async () => {
+    fetchCalendars().then(list => { setCalendars(list); setGcalSyncError(null); }).catch(async (err) => {
       if (await recoverGcalConnection()) {
-        fetchCalendars().then(setCalendars).catch(() => setCalendars([]));
+        fetchCalendars().then(list => { setCalendars(list); setGcalSyncError(null); }).catch((err2) => {
+          setCalendars([]);
+          setGcalSyncError(`Couldn't load your calendars: ${err2?.message ?? err2}`);
+        });
       } else {
         setCalendars([]);
+        setGcalSyncError(`Couldn't load your calendars: ${err?.message ?? err}`);
       }
     });
   }, [gcalConnected, recoverGcalConnection]);
@@ -326,6 +337,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
         const events = await fetchWeekEvents(rangeStart.toISOString(), rangeEnd.toISOString());
         if (busyFetchRef.current !== requestId) return; // stale response, a newer week was requested
         setBusyEventsByDay(bucketByDay(events));
+        setGcalSyncError(null);
       } catch (err) {
         if (busyFetchRef.current !== requestId) return;
         console.warn('[App] failed to fetch busy events, attempting recovery:', err);
@@ -334,13 +346,19 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
             const events = await fetchWeekEvents(rangeStart.toISOString(), rangeEnd.toISOString());
             if (busyFetchRef.current !== requestId) return;
             setBusyEventsByDay(bucketByDay(events));
+            setGcalSyncError(null);
             return;
-          } catch (err2) {
+          } catch (err2: any) {
             console.warn('[App] busy events retry after recovery also failed:', err2);
+            if (busyFetchRef.current !== requestId) return;
+            setBusyEventsByDay({});
+            setGcalSyncError(`Couldn't load calendar events: ${err2?.message ?? err2}`);
+            return;
           }
         }
         if (busyFetchRef.current !== requestId) return;
         setBusyEventsByDay({});
+        setGcalSyncError(`Couldn't load calendar events: ${(err as any)?.message ?? err}`);
       }
     };
     load();
@@ -1010,6 +1028,16 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
           </div>
         </div>
       </header>
+
+      {gcalSyncError && (
+        <div className="mx-4 mt-3 px-3 py-2 bg-[hsl(var(--status-red-bg))] text-destructive rounded-xl text-xs flex items-center gap-2 shrink-0">
+          <AlertTriangle size={14} className="shrink-0" />
+          <span className="flex-1 break-words" dir="auto">{gcalSyncError}</span>
+          <button onClick={() => setGcalSyncError(null)} className="shrink-0 p-0.5 hover:opacity-70 transition-base">
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       <main className="flex-1 px-4 pt-4 pb-4 flex gap-3 min-h-0 overflow-hidden">
         {plannerView === 'calendar' || plannerView === 'day' ? (
