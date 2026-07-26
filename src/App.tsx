@@ -10,7 +10,7 @@ import { AcademicBoard } from '@/components/AcademicBoard';
 import { forceSeedData } from '@/lib/seed';
 import {
   isConfigured, isTokenValid, requestToken,
-  connectPersistent, refreshAccessToken, getStoredRefreshToken, clearAllTokens,
+  refreshAccessToken, getStoredRefreshToken, clearAllTokens,
   loadSyncedEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
   saveSyncedEvent, fetchWeekEvents, fetchCalendars, matchCalendarName,
   type SyncedEventInfo, type GCalBusyEvent, type GCalCalendar,
@@ -250,9 +250,16 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     return () => clearInterval(id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Calling requestToken() directly — not connectPersistent() — is
+  // deliberate: the persistent code-flow (needed for "stay connected
+  // forever") depends on a server piece that isn't set up yet, and every
+  // attempt at gracefully layering it on top of Connect Calendar has made
+  // the button less reliable, not more. This is exactly the plain flow that
+  // was already working earlier. Once GOOGLE_CLIENT_SECRET is actually set
+  // and verified, this can switch back to connectPersistent().
   const handleConnectCalendar = async () => {
     try {
-      await connectPersistent();
+      await requestToken('consent');
       setGcalConnected(true);
       setGcalSyncError(null);
     } catch (err: any) {
