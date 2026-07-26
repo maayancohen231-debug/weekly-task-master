@@ -104,7 +104,7 @@ export function WeeklyGoals({ goals, tasks, onAddGoal, onDeleteGoal }: WeeklyGoa
                 <p className="text-xs font-medium text-foreground" dir="auto">{goal.name}</p>
                 <button
                   onClick={() => onDeleteGoal(goal.id)}
-                  className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/30 hover:text-destructive transition-base"
+                  className="opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 p-0.5 text-muted-foreground/30 hover:text-destructive transition-base"
                 >
                   <Trash2 size={10} />
                 </button>

@@ -109,7 +109,7 @@ export function DailyGoalsBar({ days, goals, onAddGoal, onToggleGoalDay, onDelet
                       </p>
                       <button
                         onClick={() => onDeleteGoal(goal.id)}
-                        className="shrink-0 opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/40 hover:text-destructive rounded transition-base"
+                        className="shrink-0 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 p-0.5 text-muted-foreground/40 hover:text-destructive rounded transition-base"
                         title="Delete goal"
                       >
                         <Trash2 size={11} />

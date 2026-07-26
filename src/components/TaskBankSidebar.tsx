@@ -45,7 +45,7 @@ function BankItem({ task, onDelete, onCycleStatus, onToggleDaily, onSetColor, on
         </p>
       </div>
 
-      <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-base">
+      <div className="opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 flex items-center gap-0.5 transition-base">
         <button
           onClick={(e) => { e.stopPropagation(); onToggleDaily(task.id); }}
           className={`p-1 rounded-lg transition-base ${task.isDaily ? 'text-primary' : 'text-muted-foreground/30 hover:text-primary/60'}`}

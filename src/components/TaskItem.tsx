@@ -71,7 +71,7 @@ export function TaskItem({
         )}
       </div>
 
-      <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-base">
+      <div className="opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 flex items-center gap-0.5 transition-base">
         {onMoveUp && (
           <button
             onClick={(e) => { e.stopPropagation(); onMoveUp(); }}

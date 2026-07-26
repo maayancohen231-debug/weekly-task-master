@@ -219,7 +219,7 @@ export function AcademicBoard({ onBack }: Props) {
                         )}
                         <button
                           onClick={() => deleteCourse(course.id)}
-                          className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/30 hover:text-destructive rounded transition-base shrink-0"
+                          className="opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 p-0.5 text-muted-foreground/30 hover:text-destructive rounded transition-base shrink-0"
                         >
                           <Trash2 size={11} />
                         </button>
@@ -380,7 +380,7 @@ export function AcademicBoard({ onBack }: Props) {
                   </span>
                   <button
                     onClick={() => deleteEvent(event.id)}
-                    className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/30 hover:text-destructive rounded transition-base"
+                    className="opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 p-0.5 text-muted-foreground/30 hover:text-destructive rounded transition-base"
                   >
                     <Trash2 size={12} />
                   </button>

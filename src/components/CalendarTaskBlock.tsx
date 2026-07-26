@@ -119,7 +119,7 @@ export function CalendarTaskBlock({
         )}
       </div>
 
-      <div className="absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100 flex items-center gap-0.5 bg-inherit transition-base">
+      <div className="absolute top-0.5 right-0.5 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 flex items-center gap-0.5 bg-inherit transition-base">
         <div className="relative">
           <button
             onClick={(e) => { e.stopPropagation(); setShowColorPicker(v => !v); }}
@@ -191,7 +191,7 @@ export function CalendarTaskBlock({
           onPointerDown={handleResizeStart}
           onClick={(e) => e.stopPropagation()}
           title="Drag to resize"
-          className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-0 group-hover:opacity-100 flex items-center justify-center transition-base"
+          className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 flex items-center justify-center transition-base"
         >
           <span className="w-6 h-0.5 rounded-full bg-foreground/30" />
         </div>
