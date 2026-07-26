@@ -90,48 +90,50 @@ export function DailyGoalsBar({ days, goals, onAddGoal, onToggleGoalDay, onDelet
           {goals.length === 0 ? (
             <p className="px-3 pb-3 text-[11px] text-muted-foreground/40 italic">No daily goals yet — add one above</p>
           ) : (
-            <div className="border-t border-border/50">
-              <div className="flex">
-                <div style={{ width: NAME_COL_WIDTH }} className="shrink-0" />
-                {days.map(day => (
-                  <div key={day.id} className="flex-1 min-w-[90px] text-center border-l border-border/50 px-1 py-1.5">
-                    <p className="text-[10px] font-semibold text-foreground">{day.label}</p>
-                    <p className="text-[9px] text-muted-foreground">{day.date}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="divide-y divide-border/30 border-t border-border/50">
-                {goals.map(goal => (
-                  <div key={goal.id} className="group flex items-center hover:bg-muted/30 transition-base">
-                    <div style={{ width: NAME_COL_WIDTH }} className="shrink-0 flex items-center gap-1 px-2.5 py-1.5">
-                      <p className="flex-1 min-w-0 text-[11px] font-medium text-foreground truncate" dir="auto" title={goal.name}>
-                        {goal.name}
-                      </p>
-                      <button
-                        onClick={() => onDeleteGoal(goal.id)}
-                        className="shrink-0 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 p-0.5 text-muted-foreground/40 hover:text-destructive rounded transition-base"
-                        title="Delete goal"
-                      >
-                        <Trash2 size={11} />
-                      </button>
+            <div className="overflow-x-auto scroll-thin">
+              <div className="border-t border-border/50" style={{ minWidth: NAME_COL_WIDTH + days.length * 90 }}>
+                <div className="flex">
+                  <div style={{ width: NAME_COL_WIDTH }} className="shrink-0 sticky left-0 bg-card z-10" />
+                  {days.map(day => (
+                    <div key={day.id} className="flex-1 min-w-[90px] text-center border-l border-border/50 px-1 py-1.5">
+                      <p className="text-[10px] font-semibold text-foreground">{day.label}</p>
+                      <p className="text-[9px] text-muted-foreground">{day.date}</p>
                     </div>
-                    {days.map(day => {
-                      const done = goal.doneByDay[day.id] ?? false;
-                      return (
+                  ))}
+                </div>
+                <div className="divide-y divide-border/30 border-t border-border/50">
+                  {goals.map(goal => (
+                    <div key={goal.id} className="group flex items-center hover:bg-muted/30 transition-base">
+                      <div style={{ width: NAME_COL_WIDTH }} className="shrink-0 sticky left-0 bg-card z-10 flex items-center gap-1 px-2.5 py-1.5">
+                        <p className="flex-1 min-w-0 text-[11px] font-medium text-foreground truncate" dir="auto" title={goal.name}>
+                          {goal.name}
+                        </p>
                         <button
-                          key={day.id}
-                          onClick={() => onToggleGoalDay(goal.id, day.id)}
-                          className="flex-1 min-w-[90px] border-l border-border/50 flex items-center justify-center py-1.5 transition-base"
-                          title={`${goal.name} — ${day.label}`}
+                          onClick={() => onDeleteGoal(goal.id)}
+                          className="shrink-0 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 p-0.5 text-muted-foreground/40 hover:text-destructive rounded transition-base"
+                          title="Delete goal"
                         >
-                          {done
-                            ? <CheckSquare size={13} className="text-[hsl(var(--status-green))]" />
-                            : <Square size={13} className="text-muted-foreground/25" />}
+                          <Trash2 size={11} />
                         </button>
-                      );
-                    })}
-                  </div>
-                ))}
+                      </div>
+                      {days.map(day => {
+                        const done = goal.doneByDay[day.id] ?? false;
+                        return (
+                          <button
+                            key={day.id}
+                            onClick={() => onToggleGoalDay(goal.id, day.id)}
+                            className="flex-1 min-w-[90px] border-l border-border/50 flex items-center justify-center py-1.5 transition-base"
+                            title={`${goal.name} — ${day.label}`}
+                          >
+                            {done
+                              ? <CheckSquare size={13} className="text-[hsl(var(--status-green))]" />
+                              : <Square size={13} className="text-muted-foreground/25" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}

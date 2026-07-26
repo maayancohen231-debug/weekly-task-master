@@ -61,20 +61,21 @@ export interface OverlapLayout {
   totalCols: number;
 }
 
-const CASCADE_STEP_PCT = 14;
-const CASCADE_MIN_WIDTH_PCT = 42;
+const COLUMN_GAP_PCT = 1.5;
 
 /**
- * Turns a column index / column count from layoutOverlaps into a cascading
- * on-screen position — each overlapping item stays wide and readable and is
- * offset + layered over the previous one, the way Google Calendar renders
- * concurrent events, instead of squeezing every item into an equal 1/N sliver.
+ * Turns a column index / column count from layoutOverlaps into an on-screen
+ * position — concurrent events split the day column into equal, non-
+ * overlapping side-by-side slices (with a hairline gap between them), the
+ * way Google Calendar actually renders them. An earlier version offset each
+ * item by a fixed step while keeping it near-full-width, which made blocks
+ * heavily overlap and their text bleed into each other once 2+ events shared
+ * a time slot.
  */
 export function cascadePosition(col: number, totalCols: number): { leftPct: number; widthPct: number; z: number } {
   if (totalCols <= 1) return { leftPct: 0, widthPct: 100, z: 5 };
-  const widthPct = Math.max(CASCADE_MIN_WIDTH_PCT, 100 - (totalCols - 1) * CASCADE_STEP_PCT);
-  const leftPct = Math.min(col * CASCADE_STEP_PCT, 100 - widthPct);
-  return { leftPct, widthPct, z: 5 + col };
+  const slice = 100 / totalCols;
+  return { leftPct: col * slice, widthPct: slice - COLUMN_GAP_PCT, z: 5 + col };
 }
 
 const GRID_TOTAL_MINUTES = (GRID_END_HOUR - GRID_START_HOUR) * 60;
