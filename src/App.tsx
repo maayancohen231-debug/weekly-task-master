@@ -260,44 +260,91 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     setGcalConnected(false);
   };
 
+  // A Google Calendar API call can fail mid-session (token expired, or
+  // revoked server-side) well after the connect flow itself reported
+  // success — gcalFetch() already clears the dead token when that happens,
+  // but nothing previously told the UI, so "Connected" stayed lit while
+  // every sync silently did nothing. Try one silent recovery (refresh token
+  // if we have one, else the legacy silent reissue) before conceding the
+  // connection is actually dead and flipping the badge back to disconnected.
+  const recoverGcalConnection = useCallback(async (): Promise<boolean> => {
+    if (isTokenValid()) return true;
+    try {
+      if (getStoredRefreshToken()) {
+        await refreshAccessToken();
+      } else {
+        await Promise.race([
+          requestToken(''),
+          new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000)),
+        ]);
+      }
+      return true;
+    } catch {
+      setGcalConnected(false);
+      return false;
+    }
+  }, []);
+
   // Cache the user's calendar list once connected, so tasks can be
   // auto-matched to a calendar without prompting.
   useEffect(() => {
     if (!gcalConnected) { setCalendars([]); return; }
-    fetchCalendars().then(setCalendars).catch(() => setCalendars([]));
-  }, [gcalConnected]);
+    fetchCalendars().then(setCalendars).catch(async () => {
+      if (await recoverGcalConnection()) {
+        fetchCalendars().then(setCalendars).catch(() => setCalendars([]));
+      } else {
+        setCalendars([]);
+      }
+    });
+  }, [gcalConnected, recoverGcalConnection]);
 
   // Pull existing Google Calendar events for the visible week, bucketed by day.
   const busyFetchRef = useRef(0);
   useEffect(() => {
     if (!gcalConnected) { setBusyEventsByDay({}); return; }
     const requestId = ++busyFetchRef.current;
+
+    const bucketByDay = (events: GCalBusyEvent[]): Record<string, GCalBusyEvent[]> => {
+      const byDay: Record<string, GCalBusyEvent[]> = {};
+      for (const ev of events) {
+        const start = new Date(ev.start);
+        const dayStart = new Date(weekStart);
+        dayStart.setHours(0, 0, 0, 0);
+        const diffDays = Math.round((new Date(start).setHours(0, 0, 0, 0) - dayStart.getTime()) / 86_400_000);
+        const dayId = DAY_INDEX_TO_ID[diffDays];
+        if (!dayId) continue;
+        (byDay[dayId] ??= []).push(ev);
+      }
+      return byDay;
+    };
+
     const load = async () => {
+      const rangeStart = new Date(weekStart);
+      const rangeEnd = new Date(weekStart);
+      rangeEnd.setDate(rangeEnd.getDate() + 7); // covers sun..sat
       try {
-        const rangeStart = new Date(weekStart);
-        const rangeEnd = new Date(weekStart);
-        rangeEnd.setDate(rangeEnd.getDate() + 7); // covers sun..sat
         const events = await fetchWeekEvents(rangeStart.toISOString(), rangeEnd.toISOString());
         if (busyFetchRef.current !== requestId) return; // stale response, a newer week was requested
-        const byDay: Record<string, GCalBusyEvent[]> = {};
-        for (const ev of events) {
-          const start = new Date(ev.start);
-          const dayStart = new Date(weekStart);
-          dayStart.setHours(0, 0, 0, 0);
-          const diffDays = Math.round((new Date(start).setHours(0, 0, 0, 0) - dayStart.getTime()) / 86_400_000);
-          const dayId = DAY_INDEX_TO_ID[diffDays];
-          if (!dayId) continue;
-          (byDay[dayId] ??= []).push(ev);
-        }
-        setBusyEventsByDay(byDay);
+        setBusyEventsByDay(bucketByDay(events));
       } catch (err) {
         if (busyFetchRef.current !== requestId) return;
-        console.warn('[App] failed to fetch busy events:', err);
+        console.warn('[App] failed to fetch busy events, attempting recovery:', err);
+        if (await recoverGcalConnection()) {
+          try {
+            const events = await fetchWeekEvents(rangeStart.toISOString(), rangeEnd.toISOString());
+            if (busyFetchRef.current !== requestId) return;
+            setBusyEventsByDay(bucketByDay(events));
+            return;
+          } catch (err2) {
+            console.warn('[App] busy events retry after recovery also failed:', err2);
+          }
+        }
+        if (busyFetchRef.current !== requestId) return;
         setBusyEventsByDay({});
       }
     };
     load();
-  }, [weekKey, gcalConnected]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [weekKey, gcalConnected, recoverGcalConnection]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tasks = useMemo(() => storageData.tasksByWeek[weekKey] ?? [], [storageData, weekKey]);
 
