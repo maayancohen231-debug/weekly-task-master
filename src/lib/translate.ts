@@ -3,14 +3,14 @@ export async function translateText(text: string): Promise<string> {
   if (!isHebrew) return text;
 
   try {
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=he|en`;
-    const res = await fetch(url);
+    const res = await fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) return text;
     const data = await res.json();
-    const translated: string = data?.responseData?.translatedText;
-    if (translated && translated.toLowerCase() !== text.toLowerCase()) {
-      return translated;
-    }
-    return text;
+    return typeof data.translated === 'string' && data.translated ? data.translated : text;
   } catch {
     return text;
   }
