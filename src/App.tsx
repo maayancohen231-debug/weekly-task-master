@@ -504,6 +504,23 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     }]);
   }, [setTasks]);
 
+  // Creates a task directly scheduled on the calendar grid — clicking an
+  // empty slot, rather than only being able to add via the Task Bank and
+  // then drag it onto a time.
+  const addScheduledTask = useCallback(async (dayId: string, time: string, text: string) => {
+    if (!text.trim()) return;
+    const translated = await translateText(text);
+    const newId = genId();
+    setTasks(prev => [...prev, {
+      id: newId, content: translated,
+      originalText: /[֐-׿]/.test(text) ? text : undefined,
+      status: 'none', color: 'none', dayId, isDaily: false, sortOrder: prev.length,
+      startTime: time, durationMinutes: 30,
+    }]);
+    const dayIndex = DAYS.findIndex(d => d.id === dayId);
+    syncTaskToCalendar(newId, translated, dayIndex, time, 30);
+  }, [setTasks, syncTaskToCalendar]);
+
   // Deletes the real Google Calendar event behind a read-only "busy" block
   // (an event pulled straight from Google Calendar, not created by this app —
   // these previously had no delete affordance at all).
@@ -859,6 +876,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 calendars={calendars}
                 onSetCalendar={setTaskCalendar}
                 onDeleteBusyEvent={deleteBusyEvent}
+                onQuickAdd={addScheduledTask}
               />
             </div>
 

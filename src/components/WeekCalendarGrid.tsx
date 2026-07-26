@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
+import { Plus, X } from 'lucide-react';
 import type { Task, TaskColor } from '@/lib/task-types';
 import type { GCalBusyEvent, GCalCalendar } from '@/services/googleCalendar';
 import {
@@ -31,17 +32,22 @@ interface WeekCalendarGridProps {
   calendars?: GCalCalendar[];
   onSetCalendar?: (id: string, calendarId: string) => void;
   onDeleteBusyEvent?: (event: GCalBusyEvent) => void;
+  onQuickAdd?: (dayId: string, time: string, text: string) => void;
 }
 
-function SlotCell({ dayId, time }: { dayId: string; time: string }) {
+function SlotCell({ dayId, time, onClick }: { dayId: string; time: string; onClick: () => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: slotId(dayId, time) });
   const isHourStart = time.endsWith(':00');
   return (
     <div
       ref={setNodeRef}
+      onClick={onClick}
       style={{ height: SLOT_HEIGHT }}
-      className={`border-b ${isHourStart ? 'border-border/50' : 'border-border/20'} transition-base ${isOver ? 'bg-primary/10' : ''}`}
-    />
+      className={`group/slot border-b ${isHourStart ? 'border-border/50' : 'border-border/20'} transition-base cursor-pointer hover:bg-primary/5 ${isOver ? 'bg-primary/10' : ''}`}
+      title="Click to add an event"
+    >
+      <Plus size={11} className="mx-auto mt-0.5 text-primary/0 [@media(hover:hover)]:group-hover/slot:text-primary/40 transition-base" />
+    </div>
   );
 }
 
@@ -75,10 +81,26 @@ function dayOfMonth(dateStr: string): string {
 
 export function WeekCalendarGrid({
   days, todayDayId, scheduledTasksByDay, busyEventsByDay, syncedTaskIds,
-  onDelete, onCycleStatus, onSetColor, onResize, calendars, onSetCalendar, onDeleteBusyEvent,
+  onDelete, onCycleStatus, onSetColor, onResize, calendars, onSetCalendar, onDeleteBusyEvent, onQuickAdd,
 }: WeekCalendarGridProps) {
   const nowTop = useMemo(nowIndicatorTop, []);
   const tzLabel = useMemo(timezoneLabel, []);
+
+  const [quickAdd, setQuickAdd] = useState<{ dayId: string; time: string } | null>(null);
+  const [quickAddValue, setQuickAddValue] = useState('');
+  const quickAddInputRef = useRef<HTMLInputElement>(null);
+
+  const openQuickAdd = (dayId: string, time: string) => {
+    if (!onQuickAdd) return;
+    setQuickAdd({ dayId, time });
+    setQuickAddValue('');
+    setTimeout(() => quickAddInputRef.current?.focus(), 0);
+  };
+  const closeQuickAdd = () => { setQuickAdd(null); setQuickAddValue(''); };
+  const submitQuickAdd = () => {
+    if (quickAdd && quickAddValue.trim()) onQuickAdd?.(quickAdd.dayId, quickAdd.time, quickAddValue);
+    closeQuickAdd();
+  };
 
   return (
     <div className="flex-1 flex bg-card rounded-2xl shadow-card overflow-hidden min-w-0 min-h-0">
@@ -148,7 +170,9 @@ export function WeekCalendarGrid({
                 </div>
 
                 <div style={{ height: COLUMN_HEIGHT }} className="relative">
-                  {SLOT_TIMES.map(time => <SlotCell key={time} dayId={day.id} time={time} />)}
+                  {SLOT_TIMES.map(time => (
+                    <SlotCell key={time} dayId={day.id} time={time} onClick={() => openQuickAdd(day.id, time)} />
+                  ))}
 
                   {isToday && nowTop !== null && (
                     <div style={{ top: nowTop }} className="absolute left-0 right-0 z-10 pointer-events-none flex items-center">
@@ -201,6 +225,35 @@ export function WeekCalendarGrid({
                       />
                     );
                   })}
+
+                  {quickAdd?.dayId === day.id && (
+                    <div
+                      style={{ top: minutesFromGridStart(quickAdd.time) * PX_PER_MINUTE, zIndex: 60 }}
+                      className="absolute left-0.5 right-0.5"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      <div className="bg-card rounded-lg shadow-overlay border border-primary/30 p-1 flex items-center gap-1">
+                        <input
+                          ref={quickAddInputRef}
+                          value={quickAddValue}
+                          onChange={e => setQuickAddValue(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') submitQuickAdd();
+                            if (e.key === 'Escape') closeQuickAdd();
+                          }}
+                          dir="auto"
+                          placeholder={`Event at ${quickAdd.time}...`}
+                          className="flex-1 min-w-0 px-1.5 py-1 text-[11px] bg-muted border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary/20 placeholder:text-muted-foreground/40"
+                        />
+                        <button onClick={submitQuickAdd} title="Add" className="p-1 text-primary hover:opacity-70 transition-base shrink-0">
+                          <Plus size={13} />
+                        </button>
+                        <button onClick={closeQuickAdd} title="Cancel" className="p-1 text-muted-foreground/50 hover:text-foreground transition-base shrink-0">
+                          <X size={13} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             );
