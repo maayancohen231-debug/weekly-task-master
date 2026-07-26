@@ -393,6 +393,10 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     }
     return out;
   }, [busyEventsByDay, activeSyncedGcalEventIds]);
+  // Ground-truth numbers for the status line — turns "sync succeeded but
+  // came back empty" (a real, silent failure mode) into something visible
+  // instead of indistinguishable from "sync never ran."
+  const busyEventCount = useMemo(() => Object.values(busyEventsByDay).flat().length, [busyEventsByDay]);
   const goals = useMemo(() => storageData.goalsByWeek[weekKey] ?? [], [storageData, weekKey]);
   const dailyGoals = useMemo(() => {
     const doneForWeek = storageData.dailyGoalDoneByWeek[weekKey] ?? {};
@@ -1037,6 +1041,12 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
             <X size={14} />
           </button>
         </div>
+      )}
+
+      {gcalConnected && !gcalSyncError && (
+        <p className="mx-4 mt-1.5 text-[10px] text-muted-foreground/50 shrink-0">
+          Google Calendar: {calendars.length} calendar{calendars.length === 1 ? '' : 's'} found, {busyEventCount} event{busyEventCount === 1 ? '' : 's'} loaded for this week
+        </p>
       )}
 
       <main className="flex-1 px-4 pt-4 pb-4 flex gap-3 min-h-0 overflow-hidden">
