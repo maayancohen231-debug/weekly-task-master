@@ -17,6 +17,7 @@ import {
 import { WeekCalendarGrid } from '@/components/WeekCalendarGrid';
 import { TaskBankSidebar } from '@/components/TaskBankSidebar';
 import { CalendarTaskBlock } from '@/components/CalendarTaskBlock';
+import { GCalBusyBlock } from '@/components/GCalBusyBlock';
 import { StatsCard } from '@/components/StatsCard';
 import { LibraryPanel } from '@/components/LibraryPanel';
 import { WeeklyGoals, type WeeklyGoal } from '@/components/WeeklyGoals';
@@ -534,6 +535,22 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     });
   }, []);
 
+  // Resizing a busy block changes its duration in place (same start time) —
+  // patches Google Calendar directly and updates local state optimistically,
+  // the same as a task resize, just without a local Task record to update.
+  const resizeBusyEvent = useCallback((ev: GCalBusyEvent, durationMinutes: number) => {
+    updateCalendarEvent(ev.calendarId, ev.id, ev.start, durationMinutes)
+      .catch(err => console.error('[App] failed to resize busy event:', err));
+    const newEnd = new Date(new Date(ev.start).getTime() + durationMinutes * 60_000).toISOString();
+    setBusyEventsByDay(prev => {
+      const next: Record<string, GCalBusyEvent[]> = {};
+      for (const [dayId, events] of Object.entries(prev)) {
+        next[dayId] = events.map(e => e.id === ev.id ? { ...e, end: newEnd } : e);
+      }
+      return next;
+    });
+  }, []);
+
   const deleteTask = useCallback((id: string) => {
     const realId = getRealId(id);
     const task = tasks.find(t => t.id === realId);
@@ -699,6 +716,33 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     const aid = active.id as string;
     const overId = over.id as string;
 
+    // A read-only Google Calendar block dragged to a new slot: reschedule the
+    // real event directly (no local Task record involved) and move it to the
+    // new day bucket optimistically so the UI updates without waiting for
+    // the next weekly refetch.
+    if (aid.startsWith('busy_')) {
+      const evId = aid.slice('busy_'.length);
+      const found = Object.values(busyEventsByDay).flat().find(e => e.id === evId);
+      if (!found) return;
+      const slot = parseSlotId(overId);
+      if (!slot) return;
+      const { dayId, time } = slot;
+      const dayIndex = DAYS.findIndex(d => d.id === dayId);
+      const duration = Math.max(15, Math.round((new Date(found.end).getTime() - new Date(found.start).getTime()) / 60_000));
+      const startDateTime = formatLocalDateTime(weekStart, dayIndex, time);
+      updateCalendarEvent(found.calendarId, found.id, startDateTime, duration)
+        .catch(err => console.error('[App] failed to reschedule busy event:', err));
+      const newStart = new Date(startDateTime);
+      const newEnd = new Date(newStart.getTime() + duration * 60_000);
+      setBusyEventsByDay(prev => {
+        const next: Record<string, GCalBusyEvent[]> = {};
+        for (const [dId, evs] of Object.entries(prev)) next[dId] = evs.filter(e => e.id !== evId);
+        (next[dayId] ??= []).push({ ...found, start: newStart.toISOString(), end: newEnd.toISOString() });
+        return next;
+      });
+      return;
+    }
+
     // Library template dropped: create a new task, scheduled if dropped on a slot.
     const lib = libraryTasks.find(lt => lt.id === aid);
     if (lib) {
@@ -749,7 +793,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       const dayIndex = DAYS.findIndex(d => d.id === dayId);
       syncTaskToCalendar(realAid, task.content, dayIndex, time, duration, task.calendarId);
     }
-  }, [libraryTasks, tasks, setTasks, removeSyncedEvents, syncTaskToCalendar]);
+  }, [libraryTasks, tasks, setTasks, removeSyncedEvents, syncTaskToCalendar, busyEventsByDay, weekStart]);
 
   const activeTask = useMemo(() => {
     if (!activeId) return null;
@@ -759,6 +803,12 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     }
     return tasks.find(t => t.id === activeId) ?? null;
   }, [activeId, scheduledTasksByDay, tasks]);
+
+  const activeBusyEvent = useMemo(() => {
+    if (!activeId || !activeId.startsWith('busy_')) return null;
+    const evId = activeId.slice('busy_'.length);
+    return Object.values(busyEventsByDay).flat().find(e => e.id === evId) ?? null;
+  }, [activeId, busyEventsByDay]);
 
   const activeLib = activeId ? libraryTasks.find(lt => lt.id === activeId) : null;
 
@@ -876,6 +926,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 calendars={calendars}
                 onSetCalendar={setTaskCalendar}
                 onDeleteBusyEvent={deleteBusyEvent}
+                onResizeBusyEvent={resizeBusyEvent}
                 onQuickAdd={addScheduledTask}
               />
             </div>
@@ -889,6 +940,9 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 />
               ) : null}
               {activeLib ? <div className="px-4 py-2.5 bg-card rounded-xl shadow-overlay border border-primary/20 text-[13px] font-medium text-foreground">{activeLib.content}</div> : null}
+              {activeBusyEvent ? (
+                <GCalBusyBlock event={activeBusyEvent} top={0} height={36} left="0" width="100%" isOverlay />
+              ) : null}
             </DragOverlay>
           </DndContext>
         ) : (
