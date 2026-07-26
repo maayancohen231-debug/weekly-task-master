@@ -13,6 +13,7 @@ export const GOOGLE_CLIENT_ID = '45693353250-orevcu10pnhfg4nlbidmp1nlj8nmtoto.ap
 
 const SCOPE = 'https://www.googleapis.com/auth/calendar';
 const TOKEN_KEY = 'gcal_token';
+const REFRESH_TOKEN_KEY = 'gcal_refresh_token';
 const SYNC_KEY = 'gcal_synced_events';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -60,6 +61,11 @@ interface TokenClient {
   requestAccessToken: (opts?: { prompt?: string }) => void;
 }
 
+// CodeClient shape from Google Identity Services (authorization-code / "offline" flow)
+interface CodeClient {
+  requestCode: () => void;
+}
+
 // ── Token storage ─────────────────────────────────────────────────────────────
 
 export function getStoredToken(): GCalToken | null {
@@ -86,8 +92,23 @@ function storeToken(response: { access_token: string; expires_in: number }): GCa
   return token;
 }
 
+/** Clears the short-lived access token only — used for a silent-refresh failure, keeps the refresh token so recovery can retry. */
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+}
+
+export function getStoredRefreshToken(): string | null {
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+function storeRefreshToken(token: string): void {
+  localStorage.setItem(REFRESH_TOKEN_KEY, token);
+}
+
+/** Full disconnect — clears both the access token and the persistent refresh token. */
+export function clearAllTokens(): void {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
 // ── Synced events storage ─────────────────────────────────────────────────────
@@ -170,10 +191,101 @@ export async function requestToken(prompt = ''): Promise<GCalToken> {
   });
 }
 
-/** Get a valid token, refreshing silently if expired. */
+// ── OAuth code client (authorization-code flow — the only Google flow that
+// issues a refresh token, needed so the user isn't forced to reconnect every
+// time an access token expires) ────────────────────────────────────────────
+
+let _codeClient: CodeClient | null = null;
+let _codeResolve: ((code: string) => void) | null = null;
+let _codeReject: ((err: Error) => void) | null = null;
+
+async function getCodeClient(): Promise<CodeClient> {
+  await loadGISScript();
+  if (_codeClient) return _codeClient;
+
+  const google = (window as any).google;
+  if (!google?.accounts?.oauth2) throw new Error('Google Identity Services not available');
+
+  _codeClient = google.accounts.oauth2.initCodeClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: SCOPE,
+    ux_mode: 'popup',
+    callback: (resp: { code?: string; error?: string }) => {
+      if (resp.error || !resp.code) {
+        _codeReject?.(new Error(resp.error ?? 'OAuth failed'));
+      } else {
+        _codeResolve?.(resp.code);
+      }
+      _codeResolve = null;
+      _codeReject = null;
+    },
+  });
+
+  return _codeClient!;
+}
+
+/**
+ * Full "connect" flow: shows the Google consent popup, then exchanges the
+ * resulting authorization code server-side (POST /api/google/exchange, the
+ * only place that touches the client secret) for an access token and —
+ * critically — a refresh token, which lets every later token renewal happen
+ * silently via refreshAccessToken() with no popup and no dependency on
+ * third-party cookies (which is what made the old pure-client-side silent
+ * reissue trick unreliable, especially on mobile browsers).
+ */
+export async function connectPersistent(): Promise<GCalToken> {
+  if (!GOOGLE_CLIENT_ID) {
+    throw new Error('Google Client ID not configured. Edit src/services/googleCalendar.ts.');
+  }
+  const client = await getCodeClient();
+  const code = await new Promise<string>((resolve, reject) => {
+    _codeResolve = resolve;
+    _codeReject = reject;
+    client.requestCode();
+  });
+
+  const res = await fetch('/api/google/exchange', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, origin: window.location.origin }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? 'Token exchange failed');
+
+  if (data.refresh_token) storeRefreshToken(data.refresh_token);
+  return storeToken({ access_token: data.access_token, expires_in: data.expires_in ?? 3600 });
+}
+
+/** Silently mints a fresh access token from the stored refresh token — no popup, no third-party-cookie dependency. */
+export async function refreshAccessToken(): Promise<GCalToken> {
+  const refreshToken = getStoredRefreshToken();
+  if (!refreshToken) throw new Error('No refresh token stored');
+
+  const res = await fetch('/api/google/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    // invalid_grant here means the refresh token itself is dead (revoked, or
+    // hit Google's 7-day cap for an unverified/Testing-status OAuth client)
+    // — no amount of retrying will fix it, only a full reconnect will.
+    clearAllTokens();
+    throw new Error(data.error ?? 'Refresh failed');
+  }
+  return storeToken({ access_token: data.access_token, expires_in: data.expires_in ?? 3600 });
+}
+
+/** Get a valid token, refreshing silently if expired — prefers the persistent refresh-token flow, falls back to the old GIS silent-reissue trick for a session that hasn't upgraded to it yet. */
 export async function getValidToken(): Promise<string> {
   if (isTokenValid()) return getStoredToken()!.access_token;
-  // Try silent refresh first (no prompt)
+
+  if (getStoredRefreshToken()) {
+    const token = await refreshAccessToken();
+    return token.access_token;
+  }
+
   try {
     const token = await Promise.race([
       requestToken(''),

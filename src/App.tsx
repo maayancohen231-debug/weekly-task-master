@@ -9,7 +9,8 @@ import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Un
 import { AcademicBoard } from '@/components/AcademicBoard';
 import { forceSeedData } from '@/lib/seed';
 import {
-  isConfigured, isTokenValid, requestToken, clearToken,
+  isConfigured, isTokenValid, requestToken,
+  connectPersistent, refreshAccessToken, getStoredRefreshToken, clearAllTokens,
   loadSyncedEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
   saveSyncedEvent, fetchWeekEvents, fetchCalendars, matchCalendarName,
   type SyncedEventInfo, type GCalBusyEvent, type GCalCalendar,
@@ -194,15 +195,28 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   const syncedTaskIds = useMemo(() => new Set(Object.keys(syncedEvents)), [syncedEvents]);
   const [busyEventsByDay, setBusyEventsByDay] = useState<Record<string, GCalBusyEvent[]>>({});
 
-  // Silent token refresh — only if a token already exists (even expired)
+  // Silent token refresh. Prefers the persistent refresh-token flow (a plain
+  // server call, no popup, no third-party-cookie dependency) over the old
+  // GIS silent-reissue trick, which routinely fails on mobile browsers that
+  // block the third-party iframe it relies on — that's what forced reconnects
+  // every session before.
   useEffect(() => {
     if (!isConfigured()) return;
     const tryRefresh = async () => {
       if (isTokenValid()) { setGcalConnected(true); return; }
+      if (getStoredRefreshToken()) {
+        try {
+          await refreshAccessToken();
+          setGcalConnected(true);
+        } catch {
+          setGcalConnected(false); // refresh token is dead — needs a real reconnect
+        }
+        return;
+      }
       const hasStoredToken = !!localStorage.getItem('gcal_token');
       if (!hasStoredToken) return;
       try {
-        await requestToken(''); // silent — no popup if user already granted consent
+        await requestToken(''); // legacy silent reissue, for a session that hasn't upgraded yet
         setGcalConnected(true);
       } catch {
         // Silent refresh failed — keep current state, don't force disconnect
@@ -215,7 +229,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
 
   const handleConnectCalendar = async () => {
     try {
-      await requestToken('consent');
+      await connectPersistent();
       setGcalConnected(true);
     } catch (err) {
       console.error('Google Calendar connect failed:', err);
@@ -223,7 +237,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   };
 
   const handleDisconnectCalendar = () => {
-    clearToken();
+    clearAllTokens();
     setGcalConnected(false);
   };
 

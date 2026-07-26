@@ -17,10 +17,13 @@ interface DailyGoalsBarProps {
 }
 
 const NAME_COL_WIDTH = 140;
+const COLLAPSED_KEY = 'dailyGoalsCollapsed';
 
 export function DailyGoalsBar({ days, goals, onAddGoal, onToggleGoalDay, onDeleteGoal }: DailyGoalsBarProps) {
   const [isAdding, setIsAdding] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // Persisted so the collapsed/expanded state survives a reload instead of
+  // always reopening — a plain useState(false) forgot it on every refresh.
+  const [isCollapsed, setIsCollapsed] = useState(() => localStorage.getItem(COLLAPSED_KEY) === 'true');
   const [name, setName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -56,7 +59,11 @@ export function DailyGoalsBar({ days, goals, onAddGoal, onToggleGoalDay, onDelet
             <Plus size={14} />
           </button>
           <button
-            onClick={() => setIsCollapsed(v => !v)}
+            onClick={() => setIsCollapsed(v => {
+              const next = !v;
+              localStorage.setItem(COLLAPSED_KEY, String(next));
+              return next;
+            })}
             className="p-1 text-muted-foreground/40 hover:text-foreground rounded-lg transition-base"
             title={isCollapsed ? 'Expand' : 'Collapse'}
           >
