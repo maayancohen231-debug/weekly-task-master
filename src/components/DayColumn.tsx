@@ -58,7 +58,7 @@ export function DayColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`flex-1 min-w-[140px] bg-card rounded-2xl shadow-card flex flex-col transition-base ${
+      className={`flex-1 min-w-[160px] bg-card rounded-2xl shadow-card flex flex-col transition-base ${
         isOver ? 'ring-2 ring-primary/20 shadow-hover' : ''
       }`}
     >

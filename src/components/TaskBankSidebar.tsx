@@ -32,20 +32,22 @@ function BankItem({ task, onDelete, onCycleStatus, onToggleDaily, onSetColor, on
       {...attributes}
       {...listeners}
       onClick={() => onCycleStatus(task.id)}
-      className={`group relative flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-base cursor-grab active:cursor-grabbing ${statusClasses[task.status]} ${statusBorderClasses[task.status]} ${colorBorderOverrides[taskColor]} shadow-sm-custom hover:shadow-hover`}
+      className={`group relative flex flex-col gap-1 px-3 py-2.5 rounded-xl border transition-base cursor-grab active:cursor-grabbing ${statusClasses[task.status]} ${statusBorderClasses[task.status]} ${colorBorderOverrides[taskColor]} shadow-sm-custom hover:shadow-hover`}
     >
-      <GripVertical size={14} className="shrink-0 text-muted-foreground/20 group-hover:text-muted-foreground/40 transition-base" />
-      <CheckCircle2 size={16} className={`shrink-0 transition-base ${statusIconClasses[task.status]}`} />
+      <div className="flex items-center gap-2">
+        <GripVertical size={14} className="shrink-0 text-muted-foreground/20 group-hover:text-muted-foreground/40 transition-base" />
+        <CheckCircle2 size={16} className={`shrink-0 transition-base ${statusIconClasses[task.status]}`} />
 
-      <div className="flex-1 min-w-0 flex items-center gap-1">
-        {task.isDaily && <Repeat size={10} className="shrink-0 text-primary/50" />}
-        {taskColor !== 'none' && <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${colorDotClasses[taskColor]}`} />}
-        <p className={`flex-1 text-[11px] leading-relaxed break-words ${task.status === 'green' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-          {task.content}
-        </p>
+        <div className="flex-1 min-w-0 flex items-center gap-1">
+          {task.isDaily && <Repeat size={10} className="shrink-0 text-primary/50" />}
+          {taskColor !== 'none' && <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${colorDotClasses[taskColor]}`} />}
+          <p className={`flex-1 text-[11px] leading-relaxed break-words ${task.status === 'green' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+            {task.content}
+          </p>
+        </div>
       </div>
 
-      <div className="opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 flex items-center gap-0.5 transition-base">
+      <div className="flex items-center flex-wrap justify-end gap-0.5 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-base">
         <button
           onClick={(e) => { e.stopPropagation(); onToggleDaily(task.id); }}
           className={`p-1 rounded-lg transition-base ${task.isDaily ? 'text-primary' : 'text-muted-foreground/30 hover:text-primary/60'}`}

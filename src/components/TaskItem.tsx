@@ -41,37 +41,41 @@ export function TaskItem({
       style={style}
       {...attributes}
       {...listeners}
-      className={`group relative flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-base cursor-grab active:cursor-grabbing ${statusClasses[task.status]} ${statusBorderClasses[task.status]} ${colorBorderOverrides[taskColor]} ${
+      className={`group relative flex flex-col gap-1 px-3 py-2.5 rounded-xl border transition-base cursor-grab active:cursor-grabbing ${statusClasses[task.status]} ${statusBorderClasses[task.status]} ${colorBorderOverrides[taskColor]} ${
         isOverlay ? 'shadow-overlay scale-[1.02]' : 'shadow-sm-custom hover:shadow-hover'
       }`}
       onClick={() => onCycleStatus?.(task.id)}
     >
-      <GripVertical size={14} className="shrink-0 text-muted-foreground/20 group-hover:text-muted-foreground/40 transition-base" />
+      <div className="flex items-center gap-2">
+        <GripVertical size={14} className="shrink-0 text-muted-foreground/20 group-hover:text-muted-foreground/40 transition-base" />
 
-      <CheckCircle2 size={16} className={`shrink-0 transition-base ${statusIconClasses[task.status]}`} />
+        <CheckCircle2 size={16} className={`shrink-0 transition-base ${statusIconClasses[task.status]}`} />
 
-      <div className="flex-1 min-w-0 flex items-center gap-1">
-        {task.isDaily && (
-          <Repeat size={10} className="shrink-0 text-primary/50" />
-        )}
-        {taskColor !== 'none' && (
-          <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${colorDotClasses[taskColor]}`} />
-        )}
-        {isSynced && (
-          <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[hsl(var(--task-blue))]" title="Added to Google Calendar" />
-        )}
-        <p className={`flex-1 text-[11px] leading-relaxed break-words ${task.status === 'green' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-          {task.content}
-        </p>
-        {task.startTime && (
-          <span className="shrink-0 flex items-center gap-0.5 text-[10px] text-muted-foreground/60" title={`${task.startTime} · ${task.durationMinutes ?? 30} min`}>
-            <Clock size={10} />
-            {task.startTime}
-          </span>
-        )}
+        <div className="flex-1 min-w-0 flex items-center gap-1">
+          {task.isDaily && (
+            <Repeat size={10} className="shrink-0 text-primary/50" />
+          )}
+          {taskColor !== 'none' && (
+            <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${colorDotClasses[taskColor]}`} />
+          )}
+          {isSynced && (
+            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[hsl(var(--task-blue))]" title="Added to Google Calendar" />
+          )}
+          <p className={`flex-1 text-[11px] leading-relaxed break-words ${task.status === 'green' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+            {task.content}
+          </p>
+          {task.startTime && (
+            <span className="shrink-0 flex items-center gap-0.5 text-[10px] text-muted-foreground/60" title={`${task.startTime} · ${task.durationMinutes ?? 30} min`}>
+              <Clock size={10} />
+              {task.startTime}
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 flex items-center gap-0.5 transition-base">
+      {/* Its own row + flex-wrap so a narrow card can never squeeze delete out of view
+          the way it did when this shared a single non-wrapping row with the content. */}
+      <div className="flex items-center flex-wrap justify-end gap-0.5 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-base">
         {onMoveUp && (
           <button
             onClick={(e) => { e.stopPropagation(); onMoveUp(); }}
