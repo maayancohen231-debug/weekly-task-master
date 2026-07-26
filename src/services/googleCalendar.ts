@@ -217,9 +217,16 @@ export async function fetchCalendars(): Promise<GCalCalendar[]> {
   return (data.items ?? []) as GCalCalendar[];
 }
 
-/** Fetch existing events across the user's visible calendars within a time range. */
+/**
+ * Fetch existing events across every calendar the user has access to, within
+ * a time range. Deliberately does NOT filter by `selected` — that flag is
+ * just Google Calendar's own sidebar show/hide toggle, unrelated to whether
+ * a calendar's events are real and current. Filtering on it silently hid
+ * events on any calendar the user had toggled off for their own viewing,
+ * which is exactly the kind of gap this planner exists to prevent.
+ */
 export async function fetchWeekEvents(timeMinISO: string, timeMaxISO: string): Promise<GCalBusyEvent[]> {
-  const calendars = (await fetchCalendars()).filter(c => c.selected !== false);
+  const calendars = await fetchCalendars();
 
   const results = await Promise.allSettled(
     calendars.map(async (cal) => {
