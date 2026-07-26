@@ -35,6 +35,7 @@ export function CalendarTaskBlock({
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
   const [resizeDeltaPx, setResizeDeltaPx] = useState<number | null>(null);
+  const [isFront, setIsFront] = useState(false);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id });
   const taskColor = task.color || 'none';
   const displayHeight = resizeDeltaPx !== null ? Math.max(20, height + resizeDeltaPx) : height;
@@ -59,7 +60,10 @@ export function CalendarTaskBlock({
       top, height: displayHeight, left, width,
       transform: transform ? CSS.Translate.toString(transform) : undefined,
       opacity: isDragging ? 0.35 : 1,
-      zIndex: isDragging || resizeDeltaPx !== null ? 100 : zIndex,
+      // Cascaded/stacked events overlap by design — bring the one being read
+      // or interacted with fully to the front instead of leaving it partially
+      // covered by whatever happens to sit later in the stack.
+      zIndex: isDragging || resizeDeltaPx !== null ? 100 : isFront ? 50 : zIndex,
       ...(eventColor ? { backgroundColor: hexToRgba(eventColor, 0.85), borderLeft: `3px solid ${eventColor}` } : {}),
     };
 
@@ -97,9 +101,11 @@ export function CalendarTaskBlock({
       style={style}
       {...attributes}
       {...listeners}
-      onClick={() => onCycleStatus(task.id)}
+      onClick={() => { onCycleStatus(task.id); setIsFront(true); }}
+      onMouseEnter={() => setIsFront(true)}
+      onMouseLeave={() => setIsFront(false)}
       title={task.content}
-      className={`group ${isOverlay ? '' : 'absolute'} rounded-lg border border-border/40 px-2 py-1 cursor-grab active:cursor-grabbing transition-base ${
+      className={`group ${isOverlay ? '' : 'absolute'} rounded-lg border border-border/40 ring-1 ring-card px-2 py-1 cursor-grab active:cursor-grabbing transition-base ${
         eventColor ? '' : taskColor !== 'none' ? `${colorBgTint[taskColor]} ${colorBorderOverrides[taskColor]}` : 'bg-card border-l-[3px] border-l-border/50'
       } ${isOverlay ? 'shadow-overlay scale-[1.02]' : 'shadow-sm-custom hover:shadow-hover'}`}
     >

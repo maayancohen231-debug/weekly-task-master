@@ -30,6 +30,7 @@ export function GCalBusyBlock({
   event, top, height, left, width, zIndex = 5, onDelete, onResize, isOverlay = false,
 }: GCalBusyBlockProps) {
   const [resizeDeltaPx, setResizeDeltaPx] = useState<number | null>(null);
+  const [isFront, setIsFront] = useState(false);
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `busy_${event.id}` });
   const displayHeight = resizeDeltaPx !== null ? Math.max(20, height + resizeDeltaPx) : height;
   const compact = displayHeight < 40;
@@ -42,7 +43,7 @@ export function GCalBusyBlock({
       top, height: displayHeight, left, width,
       transform: transform ? CSS.Translate.toString(transform) : undefined,
       opacity: isDragging ? 0.35 : 1,
-      zIndex: isDragging || resizeDeltaPx !== null ? 100 : zIndex,
+      zIndex: isDragging || resizeDeltaPx !== null ? 100 : isFront ? 50 : zIndex,
       backgroundColor: hexToRgba(color, 0.85),
       borderLeft: `3px solid ${color ?? 'rgba(120,120,120,0.6)'}`,
     };
@@ -80,8 +81,11 @@ export function GCalBusyBlock({
       ref={setNodeRef}
       style={style}
       {...(isOverlay ? {} : { ...attributes, ...listeners })}
+      onClick={() => setIsFront(true)}
+      onMouseEnter={() => setIsFront(true)}
+      onMouseLeave={() => setIsFront(false)}
       title={`${event.calendarName}: ${event.title}`}
-      className={`group rounded-lg border border-border/40 px-2 py-1 overflow-hidden shadow-sm-custom transition-base ${
+      className={`group rounded-lg border border-border/40 ring-1 ring-card px-2 py-1 overflow-hidden shadow-sm-custom transition-base ${
         isOverlay ? 'shadow-overlay scale-[1.02]' : 'cursor-grab active:cursor-grabbing hover:shadow-hover'
       }`}
     >
