@@ -62,7 +62,7 @@ export interface OverlapLayout {
 }
 
 const CASCADE_WIDTH_PCT = 88;
-const CASCADE_OFFSET_PCT = 9;
+const CASCADE_OFFSET_PCT = 13;
 
 /**
  * Turns a column index / column count from layoutOverlaps into an on-screen
@@ -88,12 +88,14 @@ const GRID_TOTAL_MINUTES = (GRID_END_HOUR - GRID_START_HOUR) * 60;
  * start — into an on-screen {top, height} in px, clamped to the visible grid
  * so an event starting before GRID_START_HOUR or ending after GRID_END_HOUR
  * never renders with a negative offset or spills past the column's bottom.
+ * pxPerMinute defaults to the base (unzoomed) density but the caller passes
+ * the current zoom-adjusted value so blocks stay aligned to the grid lines.
  */
-export function clampToGridPx(startMin: number, endMin: number): { top: number; height: number } {
+export function clampToGridPx(startMin: number, endMin: number, pxPerMinute: number = PX_PER_MINUTE): { top: number; height: number } {
   const clampedStart = Math.max(0, Math.min(startMin, GRID_TOTAL_MINUTES));
   const clampedEnd = Math.max(0, Math.min(endMin, GRID_TOTAL_MINUTES));
-  const top = clampedStart * PX_PER_MINUTE;
-  const height = Math.max(2, (clampedEnd - clampedStart) * PX_PER_MINUTE - 2);
+  const top = clampedStart * pxPerMinute;
+  const height = Math.max(2, (clampedEnd - clampedStart) * pxPerMinute - 2);
   return { top, height };
 }
 

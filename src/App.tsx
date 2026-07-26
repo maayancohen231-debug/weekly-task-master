@@ -5,7 +5,7 @@ import {
   defaultDropAnimationSideEffects,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, LayoutList, CalendarRange } from 'lucide-react';
+import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar } from 'lucide-react';
 import { AcademicBoard } from '@/components/AcademicBoard';
 import { forceSeedData } from '@/lib/seed';
 import {
@@ -186,7 +186,26 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
 
   const [storageData, setStorageData] = useState<StorageData>(loadStorage);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [plannerView, setPlannerView] = useState<'calendar' | 'list'>('calendar');
+  const [plannerView, setPlannerView] = useState<'calendar' | 'day' | 'list'>('calendar');
+  const [selectedDayId, setSelectedDayId] = useState(() => todayDayId ?? DAY_IDS[0]);
+  const selectedDayIndex = (DAY_IDS as string[]).indexOf(selectedDayId);
+
+  const navigateDay = (dir: number) => {
+    const newIdx = selectedDayIndex + dir;
+    if (newIdx < 0) {
+      navigateWeek(-1);
+      setSelectedDayId(DAY_IDS[DAY_IDS.length - 1]);
+    } else if (newIdx >= DAY_IDS.length) {
+      navigateWeek(1);
+      setSelectedDayId(DAY_IDS[0]);
+    } else {
+      setSelectedDayId(DAY_IDS[newIdx]);
+    }
+  };
+  const goToToday = () => {
+    setWeekStart(currentWeekSunday);
+    setSelectedDayId(DAY_INDEX_TO_ID[new Date().getDay()] ?? DAY_IDS[0]);
+  };
 
   // Google Calendar state
   const [gcalConnected, setGcalConnected] = useState(() => isTokenValid());
@@ -835,23 +854,43 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
           <h1 className="text-lg font-bold text-foreground tracking-tight shrink-0">
             Weekly Task Master
           </h1>
-          <div className="flex items-center gap-2 mx-auto">
-            <button onClick={() => navigateWeek(-1)} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-base">
-              <ChevronLeft size={18} />
-            </button>
-            <div className="text-center min-w-[170px]">
-              <p className="text-sm font-semibold text-foreground">{getMonthYear(weekStart)}</p>
-              <p className="text-[11px] text-muted-foreground">{getWeekRange(weekStart)}</p>
-            </div>
-            <button onClick={() => navigateWeek(1)} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-base">
-              <ChevronRight size={18} />
-            </button>
-            {!isCurrentWeek && (
-              <button onClick={() => setWeekStart(currentWeekSunday)} className="ml-2 px-3 py-1 text-xs font-semibold bg-primary text-primary-foreground rounded-xl transition-base hover:opacity-90">
-                Today
+          {plannerView === 'day' ? (
+            <div className="flex items-center gap-2 mx-auto">
+              <button onClick={() => navigateDay(-1)} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-base">
+                <ChevronLeft size={18} />
               </button>
-            )}
-          </div>
+              <div className="text-center min-w-[170px]">
+                <p className="text-sm font-semibold text-foreground">{DAYS[selectedDayIndex]?.label}</p>
+                <p className="text-[11px] text-muted-foreground">{formatDayDate(weekStart, selectedDayIndex)}</p>
+              </div>
+              <button onClick={() => navigateDay(1)} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-base">
+                <ChevronRight size={18} />
+              </button>
+              {!(isCurrentWeek && selectedDayId === todayDayId) && (
+                <button onClick={goToToday} className="ml-2 px-3 py-1 text-xs font-semibold bg-primary text-primary-foreground rounded-xl transition-base hover:opacity-90">
+                  Today
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 mx-auto">
+              <button onClick={() => navigateWeek(-1)} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-base">
+                <ChevronLeft size={18} />
+              </button>
+              <div className="text-center min-w-[170px]">
+                <p className="text-sm font-semibold text-foreground">{getMonthYear(weekStart)}</p>
+                <p className="text-[11px] text-muted-foreground">{getWeekRange(weekStart)}</p>
+              </div>
+              <button onClick={() => navigateWeek(1)} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-base">
+                <ChevronRight size={18} />
+              </button>
+              {!isCurrentWeek && (
+                <button onClick={() => setWeekStart(currentWeekSunday)} className="ml-2 px-3 py-1 text-xs font-semibold bg-primary text-primary-foreground rounded-xl transition-base hover:opacity-90">
+                  Today
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="flex items-center gap-2 shrink-0">
             <button
@@ -882,13 +921,38 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 </button>
               )
             ) : null}
-            <button
-              onClick={() => setPlannerView(v => v === 'calendar' ? 'list' : 'calendar')}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-base"
-            >
-              {plannerView === 'calendar' ? <LayoutList size={14} /> : <CalendarRange size={14} />}
-              <span>{plannerView === 'calendar' ? 'List View' : 'Calendar View'}</span>
-            </button>
+            <div className="flex items-center gap-0.5 bg-muted rounded-xl p-0.5">
+              <button
+                onClick={() => setPlannerView('calendar')}
+                title="Week view"
+                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-base ${
+                  plannerView === 'calendar' ? 'bg-card text-foreground shadow-sm-custom' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <CalendarRange size={14} />
+                <span>Week</span>
+              </button>
+              <button
+                onClick={() => setPlannerView('day')}
+                title="Day view"
+                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-base ${
+                  plannerView === 'day' ? 'bg-card text-foreground shadow-sm-custom' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Calendar size={14} />
+                <span>Day</span>
+              </button>
+              <button
+                onClick={() => setPlannerView('list')}
+                title="List view"
+                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-base ${
+                  plannerView === 'list' ? 'bg-card text-foreground shadow-sm-custom' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <LayoutList size={14} />
+                <span>List</span>
+              </button>
+            </div>
             <button
               onClick={onNavigateAcademic}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-base"
@@ -901,7 +965,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       </header>
 
       <main className="flex-1 px-4 pt-4 pb-4 flex gap-3 min-h-0 overflow-hidden">
-        {plannerView === 'calendar' ? (
+        {plannerView === 'calendar' || plannerView === 'day' ? (
           <DndContext sensors={sensors} collisionDetection={pointerWithin}
             onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2 scroll-thin">
@@ -928,7 +992,9 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 onDeleteGoal={deleteDailyGoal}
               />
               <WeekCalendarGrid
-                days={DAYS.map((d, i) => ({ id: d.id, label: d.label, date: formatDayDate(weekStart, i) }))}
+                days={plannerView === 'day'
+                  ? [{ id: selectedDayId, label: DAYS[selectedDayIndex]?.label ?? '', date: formatDayDate(weekStart, selectedDayIndex) }]
+                  : DAYS.map((d, i) => ({ id: d.id, label: d.label, date: formatDayDate(weekStart, i) }))}
                 todayDayId={todayDayId}
                 scheduledTasksByDay={scheduledTasksByDay}
                 busyEventsByDay={visibleBusyEventsByDay}

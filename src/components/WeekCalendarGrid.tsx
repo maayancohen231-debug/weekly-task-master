@@ -1,17 +1,19 @@
 import { useMemo, useRef, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, ZoomIn, ZoomOut } from 'lucide-react';
 import type { Task, TaskColor } from '@/lib/task-types';
 import type { GCalBusyEvent, GCalCalendar } from '@/services/googleCalendar';
 import {
-  GRID_START_HOUR, GRID_END_HOUR, GRID_HOURS, SLOT_MINUTES, PX_PER_MINUTE, SLOT_TIMES,
+  GRID_START_HOUR, GRID_END_HOUR, GRID_HOURS, SLOT_MINUTES, PX_PER_HOUR, SLOT_TIMES,
   minutesFromGridStart, slotId, layoutOverlaps, clampToGridPx, cascadePosition,
 } from '@/lib/calendar-grid';
 import { CalendarTaskBlock } from './CalendarTaskBlock';
 import { GCalBusyBlock } from './GCalBusyBlock';
 
-const SLOT_HEIGHT = SLOT_MINUTES * PX_PER_MINUTE;
-const COLUMN_HEIGHT = (GRID_END_HOUR - GRID_START_HOUR) * 60 * PX_PER_MINUTE;
+const ZOOM_KEY = 'calendarPxPerHour';
+const ZOOM_MIN = 20;
+const ZOOM_MAX = 84;
+const ZOOM_STEP = 8;
 
 interface DayInfo {
   id: string;
@@ -36,14 +38,14 @@ interface WeekCalendarGridProps {
   onQuickAdd?: (dayId: string, time: string, text: string) => void;
 }
 
-function SlotCell({ dayId, time, onClick }: { dayId: string; time: string; onClick: () => void }) {
+function SlotCell({ dayId, time, height, onClick }: { dayId: string; time: string; height: number; onClick: () => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: slotId(dayId, time) });
   const isHourStart = time.endsWith(':00');
   return (
     <div
       ref={setNodeRef}
       onClick={onClick}
-      style={{ height: SLOT_HEIGHT }}
+      style={{ height }}
       className={`group/slot border-b ${isHourStart ? 'border-border/50' : 'border-border/20'} transition-base cursor-pointer hover:bg-primary/5 ${isOver ? 'bg-primary/10' : ''}`}
       title="Click to add an event"
     >
@@ -52,13 +54,13 @@ function SlotCell({ dayId, time, onClick }: { dayId: string; time: string; onCli
   );
 }
 
-function nowIndicatorTop(): number | null {
+function nowIndicatorTop(pxPerMinute: number): number | null {
   const now = new Date();
   const mins = now.getHours() * 60 + now.getMinutes();
   const startMins = GRID_START_HOUR * 60;
   const endMins = GRID_END_HOUR * 60;
   if (mins < startMins || mins > endMins) return null;
-  return (mins - startMins) * PX_PER_MINUTE;
+  return (mins - startMins) * pxPerMinute;
 }
 
 function eventTimeString(d: Date): string {
@@ -84,8 +86,28 @@ export function WeekCalendarGrid({
   days, todayDayId, scheduledTasksByDay, busyEventsByDay, syncedTaskIds,
   onDelete, onCycleStatus, onSetColor, onResize, calendars, onSetCalendar, onDeleteBusyEvent, onResizeBusyEvent, onQuickAdd,
 }: WeekCalendarGridProps) {
-  const nowTop = useMemo(nowIndicatorTop, []);
   const tzLabel = useMemo(timezoneLabel, []);
+
+  // Vertical zoom (px per hour) — persisted so a preferred density survives
+  // a reload. Threaded through as a value (not a fixed constant) so every
+  // top/height/drag calculation stays in sync with the current zoom level.
+  const [pxPerHour, setPxPerHour] = useState(() => {
+    const stored = Number(localStorage.getItem(ZOOM_KEY));
+    return stored >= ZOOM_MIN && stored <= ZOOM_MAX ? stored : PX_PER_HOUR;
+  });
+  const pxPerMinute = pxPerHour / 60;
+  const zoomBy = (delta: number) => setPxPerHour(prev => {
+    const next = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, prev + delta));
+    localStorage.setItem(ZOOM_KEY, String(next));
+    return next;
+  });
+
+  const nowTop = useMemo(() => nowIndicatorTop(pxPerMinute), [pxPerMinute]);
+  const slotHeight = SLOT_MINUTES * pxPerMinute;
+  const columnHeight = (GRID_END_HOUR - GRID_START_HOUR) * 60 * pxPerMinute;
+  // A week's worth of narrow columns needs a wide scroll surface; a single
+  // focused day (Day View) shouldn't force the same width and an empty gap.
+  const gridMinWidth = Math.max(400, 56 + days.length * (days.length === 1 ? 320 : 104));
 
   const [quickAdd, setQuickAdd] = useState<{ dayId: string; time: string } | null>(null);
   const [quickAddValue, setQuickAddValue] = useState('');
@@ -104,19 +126,38 @@ export function WeekCalendarGrid({
   };
 
   return (
-    <div className="flex-1 flex bg-card rounded-2xl shadow-card overflow-hidden min-w-0 min-h-0">
+    <div className="relative flex-1 flex bg-card rounded-2xl shadow-card overflow-hidden min-w-0 min-h-0">
+      <div className="absolute top-1.5 right-1.5 z-20 flex items-center gap-0.5 bg-card/95 rounded-lg shadow-sm-custom border border-border/40 p-0.5">
+        <button
+          onClick={() => zoomBy(-ZOOM_STEP)}
+          disabled={pxPerHour <= ZOOM_MIN}
+          title="Zoom out (shorter hours)"
+          className="p-1 text-muted-foreground/50 hover:text-foreground disabled:opacity-30 rounded transition-base"
+        >
+          <ZoomOut size={13} />
+        </button>
+        <button
+          onClick={() => zoomBy(ZOOM_STEP)}
+          disabled={pxPerHour >= ZOOM_MAX}
+          title="Zoom in (taller hours)"
+          className="p-1 text-muted-foreground/50 hover:text-foreground disabled:opacity-30 rounded transition-base"
+        >
+          <ZoomIn size={13} />
+        </button>
+      </div>
+
       <div className="flex-1 overflow-y-auto overflow-x-auto scroll-thin">
-        <div className="flex min-w-[860px]">
+        <div className="flex" style={{ minWidth: gridMinWidth }}>
           {/* Hour axis gutter */}
           <div className="w-14 shrink-0 sticky left-0 bg-card z-10 border-r border-border/40">
             <div className="h-[44px] flex items-end justify-center pb-1.5 border-b border-border/40">
               <span className="text-[9px] font-medium text-muted-foreground/50">{tzLabel}</span>
             </div>
-            <div style={{ height: COLUMN_HEIGHT }} className="relative">
+            <div style={{ height: columnHeight }} className="relative">
               {GRID_HOURS.map(hour => (
                 <div
                   key={hour}
-                  style={{ top: (hour - GRID_START_HOUR) * 60 * PX_PER_MINUTE }}
+                  style={{ top: (hour - GRID_START_HOUR) * 60 * pxPerMinute }}
                   className="absolute -translate-y-1/2 right-2 text-[10px] text-muted-foreground/60"
                 >
                   {String(hour).padStart(2, '0')}:00
@@ -170,9 +211,9 @@ export function WeekCalendarGrid({
                   </span>
                 </div>
 
-                <div style={{ height: COLUMN_HEIGHT }} className="relative">
+                <div style={{ height: columnHeight }} className="relative">
                   {SLOT_TIMES.map(time => (
-                    <SlotCell key={time} dayId={day.id} time={time} onClick={() => openQuickAdd(day.id, time)} />
+                    <SlotCell key={time} dayId={day.id} time={time} height={slotHeight} onClick={() => openQuickAdd(day.id, time)} />
                   ))}
 
                   {isToday && nowTop !== null && (
@@ -186,7 +227,7 @@ export function WeekCalendarGrid({
                     const l = layout.get(`busy_${ev.id}`);
                     const { leftPct, widthPct, z } = cascadePosition(l?.col ?? 0, l?.totalCols ?? 1);
                     const r = busyRanges.get(ev.id)!;
-                    const { top, height } = clampToGridPx(r.startMin, r.endMin);
+                    const { top, height } = clampToGridPx(r.startMin, r.endMin, pxPerMinute);
                     return (
                       <GCalBusyBlock
                         key={ev.id}
@@ -196,6 +237,7 @@ export function WeekCalendarGrid({
                         left={`${leftPct}%`}
                         width={`${widthPct}%`}
                         zIndex={z}
+                        pxPerMinute={pxPerMinute}
                         onDelete={onDeleteBusyEvent}
                         onResize={onResizeBusyEvent}
                       />
@@ -207,7 +249,7 @@ export function WeekCalendarGrid({
                     const { leftPct, widthPct, z } = cascadePosition(l?.col ?? 0, l?.totalCols ?? 1);
                     const duration = task.durationMinutes ?? 30;
                     const startMin = minutesFromGridStart(task.startTime!);
-                    const { top, height } = clampToGridPx(startMin, startMin + duration);
+                    const { top, height } = clampToGridPx(startMin, startMin + duration, pxPerMinute);
                     return (
                       <CalendarTaskBlock
                         key={task.id}
@@ -217,6 +259,7 @@ export function WeekCalendarGrid({
                         left={`${leftPct}%`}
                         width={`${widthPct}%`}
                         zIndex={10 + z}
+                        pxPerMinute={pxPerMinute}
                         onDelete={onDelete}
                         onCycleStatus={onCycleStatus}
                         onSetColor={onSetColor}
@@ -230,7 +273,7 @@ export function WeekCalendarGrid({
 
                   {quickAdd?.dayId === day.id && (
                     <div
-                      style={{ top: minutesFromGridStart(quickAdd.time) * PX_PER_MINUTE, zIndex: 60 }}
+                      style={{ top: minutesFromGridStart(quickAdd.time) * pxPerMinute, zIndex: 60 }}
                       className="absolute left-0.5 right-0.5"
                       onClick={e => e.stopPropagation()}
                     >

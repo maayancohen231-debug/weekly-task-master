@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Lock, Trash2 } from 'lucide-react';
 import type { GCalBusyEvent } from '@/services/googleCalendar';
 import { hexToRgba } from '@/lib/task-styles';
-import { PX_PER_MINUTE } from '@/lib/calendar-grid';
+import { PX_PER_MINUTE as BASE_PX_PER_MINUTE } from '@/lib/calendar-grid';
 
 const MIN_DURATION_MINUTES = 15;
 const RESIZE_SNAP_MINUTES = 15;
@@ -19,6 +19,7 @@ interface GCalBusyBlockProps {
   onDelete?: (event: GCalBusyEvent) => void;
   onResize?: (event: GCalBusyEvent, durationMinutes: number) => void;
   isOverlay?: boolean;
+  pxPerMinute?: number;
 }
 
 function formatEventTime(iso: string): string {
@@ -27,7 +28,7 @@ function formatEventTime(iso: string): string {
 }
 
 export function GCalBusyBlock({
-  event, top, height, left, width, zIndex = 5, onDelete, onResize, isOverlay = false,
+  event, top, height, left, width, zIndex = 5, onDelete, onResize, isOverlay = false, pxPerMinute = BASE_PX_PER_MINUTE,
 }: GCalBusyBlockProps) {
   const [resizeDeltaPx, setResizeDeltaPx] = useState<number | null>(null);
   const [isFront, setIsFront] = useState(false);
@@ -35,12 +36,17 @@ export function GCalBusyBlock({
   const displayHeight = resizeDeltaPx !== null ? Math.max(20, height + resizeDeltaPx) : height;
   const compact = displayHeight < 40;
   const color = event.calendarColor;
+  // See CalendarTaskBlock: cascaded blocks are narrower/partly covered by
+  // design, so bring-to-front also expands to full width to be readable.
+  const front = isFront && !isDragging && resizeDeltaPx === null;
 
   const style: React.CSSProperties = isOverlay
     ? { width: 180, height: Math.max(height, 32) }
     : {
       position: 'absolute',
-      top, height: displayHeight, left, width,
+      top, height: displayHeight,
+      left: front ? '0%' : left,
+      width: front ? '100%' : width,
       transform: transform ? CSS.Translate.toString(transform) : undefined,
       opacity: isDragging ? 0.35 : 1,
       zIndex: isDragging || resizeDeltaPx !== null ? 100 : isFront ? 50 : zIndex,
@@ -65,7 +71,7 @@ export function GCalBusyBlock({
       target.removeEventListener('pointermove', handleMove);
       target.removeEventListener('pointerup', handleUp);
       setResizeDeltaPx(null);
-      const deltaMinutes = (ev.clientY - startY) / PX_PER_MINUTE;
+      const deltaMinutes = (ev.clientY - startY) / pxPerMinute;
       const snapped = Math.max(
         MIN_DURATION_MINUTES,
         Math.round((startDuration + deltaMinutes) / RESIZE_SNAP_MINUTES) * RESIZE_SNAP_MINUTES,

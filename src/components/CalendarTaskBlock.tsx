@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import type { Task, TaskColor } from '@/lib/task-types';
 import { TASK_COLORS } from '@/lib/task-types';
 import { colorDotClasses, colorBorderOverrides, colorBgTint, hexToRgba } from '@/lib/task-styles';
-import { PX_PER_MINUTE, timeToMinutes, minutesToTime } from '@/lib/calendar-grid';
+import { PX_PER_MINUTE as BASE_PX_PER_MINUTE, timeToMinutes, minutesToTime } from '@/lib/calendar-grid';
 import { matchCalendarName, type GCalCalendar } from '@/services/googleCalendar';
 
 const MIN_DURATION_MINUTES = 15;
@@ -26,11 +26,12 @@ interface CalendarTaskBlockProps {
   isSynced?: boolean;
   isOverlay?: boolean;
   zIndex?: number;
+  pxPerMinute?: number;
 }
 
 export function CalendarTaskBlock({
   task, top, height, left, width, onDelete, onCycleStatus, onSetColor, onResize, calendars, onSetCalendar,
-  isSynced = false, isOverlay = false, zIndex = 5,
+  isSynced = false, isOverlay = false, zIndex = 5, pxPerMinute = BASE_PX_PER_MINUTE,
 }: CalendarTaskBlockProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
@@ -53,16 +54,21 @@ export function CalendarTaskBlock({
   }, [calendars, task.calendarId, task.content]);
   const eventColor = resolvedCalendar?.backgroundColor;
 
+  // Cascaded/stacked events are intentionally narrower than the column and
+  // partly covered by design — but that also means their text is partly
+  // truncated by default. Bringing one to front (hover/click) also expands
+  // it to the column's full width so it's actually readable, not just on top.
+  const front = isFront && !isDragging && resizeDeltaPx === null;
+
   const style: React.CSSProperties = isOverlay
     ? { width: 180, height: Math.max(height, 32) }
     : {
       position: 'absolute',
-      top, height: displayHeight, left, width,
+      top, height: displayHeight,
+      left: front ? '0%' : left,
+      width: front ? '100%' : width,
       transform: transform ? CSS.Translate.toString(transform) : undefined,
       opacity: isDragging ? 0.35 : 1,
-      // Cascaded/stacked events overlap by design — bring the one being read
-      // or interacted with fully to the front instead of leaving it partially
-      // covered by whatever happens to sit later in the stack.
       zIndex: isDragging || resizeDeltaPx !== null ? 100 : isFront ? 50 : zIndex,
       ...(eventColor ? { backgroundColor: hexToRgba(eventColor, 0.85), borderLeft: `3px solid ${eventColor}` } : {}),
     };
@@ -84,7 +90,7 @@ export function CalendarTaskBlock({
       target.removeEventListener('pointermove', handleMove);
       target.removeEventListener('pointerup', handleUp);
       setResizeDeltaPx(null);
-      const deltaMinutes = (ev.clientY - startY) / PX_PER_MINUTE;
+      const deltaMinutes = (ev.clientY - startY) / pxPerMinute;
       const snapped = Math.max(
         MIN_DURATION_MINUTES,
         Math.round((startDuration + deltaMinutes) / RESIZE_SNAP_MINUTES) * RESIZE_SNAP_MINUTES,
