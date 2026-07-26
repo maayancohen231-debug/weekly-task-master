@@ -224,19 +224,42 @@ async function getCodeClient(): Promise<CodeClient> {
   return _codeClient!;
 }
 
+// Cached across the page's lifetime — the server config doesn't change
+// mid-session, and this lets connect() decide up front which single popup to
+// show instead of discovering mid-flow that the persistent path can't work.
+let _persistentConfigured: boolean | null = null;
+async function checkPersistentConfigured(): Promise<boolean> {
+  if (_persistentConfigured !== null) return _persistentConfigured;
+  try {
+    const res = await fetch('/api/google/exchange');
+    const data = await res.json();
+    _persistentConfigured = res.ok && data.configured === true;
+  } catch {
+    _persistentConfigured = false;
+  }
+  return _persistentConfigured;
+}
+
 /**
- * Full "connect" flow: shows the Google consent popup, then exchanges the
- * resulting authorization code server-side (POST /api/google/exchange, the
- * only place that touches the client secret) for an access token and —
+ * Full "connect" flow. When the server-side piece is configured
+ * (GOOGLE_CLIENT_SECRET set), shows the Google consent popup and exchanges
+ * the resulting authorization code server-side (POST /api/google/exchange,
+ * the only place that touches the client secret) for an access token and —
  * critically — a refresh token, which lets every later token renewal happen
  * silently via refreshAccessToken() with no popup and no dependency on
- * third-party cookies (which is what made the old pure-client-side silent
- * reissue trick unreliable, especially on mobile browsers).
+ * third-party cookies. Otherwise falls back to the classic single-popup
+ * implicit flow — checked *before* opening any popup, specifically to avoid
+ * ever needing a second, browser-blocked popup mid-flow.
  */
 export async function connectPersistent(): Promise<GCalToken> {
   if (!GOOGLE_CLIENT_ID) {
     throw new Error('Google Client ID not configured. Edit src/services/googleCalendar.ts.');
   }
+
+  if (!(await checkPersistentConfigured())) {
+    return requestToken('consent');
+  }
+
   const client = await getCodeClient();
   const code = await new Promise<string>((resolve, reject) => {
     _codeResolve = resolve;
@@ -250,14 +273,8 @@ export async function connectPersistent(): Promise<GCalToken> {
     body: JSON.stringify({ code, origin: window.location.origin }),
   });
   if (!res.ok) {
-    // The server-side piece (GOOGLE_CLIENT_SECRET) isn't configured yet —
-    // don't leave "Connect Calendar" completely broken while that's pending.
-    // Fall back to the classic implicit flow, which needs no server secret,
-    // so the button keeps working today; once the secret is set, this
-    // branch stops being hit and connections upgrade to the persistent flow.
     const data = await res.json().catch(() => ({}));
-    console.warn('[googleCalendar] persistent connect unavailable, falling back to session-only connect:', data.error);
-    return requestToken('consent');
+    throw new Error(data.error ?? 'Token exchange failed');
   }
   const data = await res.json();
 
