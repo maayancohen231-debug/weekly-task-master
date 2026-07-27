@@ -46,10 +46,10 @@ function SlotCell({ dayId, time, height, onClick }: { dayId: string; time: strin
       ref={setNodeRef}
       onClick={onClick}
       style={{ height }}
-      className={`group/slot border-b ${isHourStart ? 'border-border/50' : 'border-border/20'} transition-base cursor-pointer hover:bg-primary/5 ${isOver ? 'bg-primary/10' : ''}`}
+      className={`group/slot flex items-center justify-center border-b ${isHourStart ? 'border-border/50' : 'border-border/20'} transition-base cursor-pointer hover:bg-primary/5 ${isOver ? 'bg-primary/10' : ''}`}
       title="Click to add an event"
     >
-      <Plus size={11} className="mx-auto mt-0.5 text-primary/0 [@media(hover:hover)]:group-hover/slot:text-primary/40 transition-base" />
+      <Plus size={11} className="text-primary/0 [@media(hover:hover)]:group-hover/slot:text-primary/40 transition-base" />
     </div>
   );
 }

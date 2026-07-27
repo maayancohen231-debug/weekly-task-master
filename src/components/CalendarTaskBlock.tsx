@@ -1,5 +1,4 @@
 import { useDraggable } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
 import { Trash2, Repeat, Palette, Clock, CalendarClock } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { Task, TaskColor } from '@/lib/task-types';
@@ -37,7 +36,7 @@ export function CalendarTaskBlock({
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
   const [resizeDeltaPx, setResizeDeltaPx] = useState<number | null>(null);
   const [isFront, setIsFront] = useState(false);
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id });
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id });
   const taskColor = task.color || 'none';
   const displayHeight = resizeDeltaPx !== null ? Math.max(20, height + resizeDeltaPx) : height;
   const compact = displayHeight < 40;
@@ -67,7 +66,6 @@ export function CalendarTaskBlock({
       top, height: displayHeight,
       left: front ? '0%' : left,
       width: front ? '100%' : width,
-      transform: transform ? CSS.Translate.toString(transform) : undefined,
       opacity: isDragging ? 0.35 : 1,
       zIndex: isDragging || resizeDeltaPx !== null ? 100 : isFront ? 50 : zIndex,
       ...(eventColor ? { backgroundColor: hexToRgba(eventColor, 0.85), borderLeft: `3px solid ${eventColor}` } : {}),
@@ -111,7 +109,7 @@ export function CalendarTaskBlock({
       onMouseEnter={() => setIsFront(true)}
       onMouseLeave={() => setIsFront(false)}
       title={task.content}
-      className={`group ${isOverlay ? '' : 'absolute'} rounded-lg border border-border/40 ring-1 ring-card px-2 py-1 cursor-grab active:cursor-grabbing transition-base ${
+      className={`group ${isOverlay ? '' : 'absolute'} rounded-lg border border-border/40 ring-1 ring-card px-2 py-1 cursor-grab active:cursor-grabbing ${isDragging ? '' : 'transition-base'} ${
         eventColor ? '' : taskColor !== 'none' ? `${colorBgTint[taskColor]} ${colorBorderOverrides[taskColor]}` : 'bg-card border-l-[3px] border-l-border/50'
       } ${isOverlay ? 'shadow-overlay scale-[1.02]' : 'shadow-sm-custom hover:shadow-hover'}`}
     >

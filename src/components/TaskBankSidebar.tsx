@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
 import { Plus, Trash2, GripVertical, CheckCircle2, Repeat, Palette, Scissors, Loader2 } from 'lucide-react';
 import type { Task, TaskColor } from '@/lib/task-types';
 import { TASK_COLORS } from '@/lib/task-types';
@@ -18,10 +17,9 @@ interface BankItemProps {
 
 function BankItem({ task, onDelete, onCycleStatus, onToggleDaily, onSetColor, onSplitTask }: BankItemProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id });
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id });
   const taskColor = task.color || 'none';
   const style = {
-    transform: transform ? CSS.Translate.toString(transform) : undefined,
     opacity: isDragging ? 0.3 : 1,
   };
 
@@ -32,7 +30,7 @@ function BankItem({ task, onDelete, onCycleStatus, onToggleDaily, onSetColor, on
       {...attributes}
       {...listeners}
       onClick={() => onCycleStatus(task.id)}
-      className={`group relative flex flex-col gap-1 px-3 py-2.5 rounded-xl border transition-base cursor-grab active:cursor-grabbing ${statusClasses[task.status]} ${statusBorderClasses[task.status]} ${colorBorderOverrides[taskColor]} shadow-sm-custom hover:shadow-hover`}
+      className={`group relative flex flex-col gap-1 px-3 py-2.5 rounded-xl border cursor-grab active:cursor-grabbing ${isDragging ? '' : 'transition-base'} ${statusClasses[task.status]} ${statusBorderClasses[task.status]} ${colorBorderOverrides[taskColor]} shadow-sm-custom hover:shadow-hover`}
     >
       <div className="flex items-center gap-2">
         <GripVertical size={14} className="shrink-0 text-muted-foreground/20 group-hover:text-muted-foreground/40 transition-base" />

@@ -1,5 +1,4 @@
 import { useDraggable } from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
 import { useState } from 'react';
 import { Lock, Trash2 } from 'lucide-react';
 import type { GCalBusyEvent } from '@/services/googleCalendar';
@@ -32,7 +31,7 @@ export function GCalBusyBlock({
 }: GCalBusyBlockProps) {
   const [resizeDeltaPx, setResizeDeltaPx] = useState<number | null>(null);
   const [isFront, setIsFront] = useState(false);
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `busy_${event.id}` });
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `busy_${event.id}` });
   const displayHeight = resizeDeltaPx !== null ? Math.max(20, height + resizeDeltaPx) : height;
   const compact = displayHeight < 40;
   const color = event.calendarColor;
@@ -47,7 +46,6 @@ export function GCalBusyBlock({
       top, height: displayHeight,
       left: front ? '0%' : left,
       width: front ? '100%' : width,
-      transform: transform ? CSS.Translate.toString(transform) : undefined,
       opacity: isDragging ? 0.35 : 1,
       zIndex: isDragging || resizeDeltaPx !== null ? 100 : isFront ? 50 : zIndex,
       backgroundColor: hexToRgba(color, 0.85),
@@ -91,7 +89,7 @@ export function GCalBusyBlock({
       onMouseEnter={() => setIsFront(true)}
       onMouseLeave={() => setIsFront(false)}
       title={`${event.calendarName}: ${event.title}`}
-      className={`group rounded-lg border border-border/40 ring-1 ring-card px-2 py-1 overflow-hidden shadow-sm-custom transition-base ${
+      className={`group rounded-lg border border-border/40 ring-1 ring-card px-2 py-1 overflow-hidden shadow-sm-custom ${isDragging ? '' : 'transition-base'} ${
         isOverlay ? 'shadow-overlay scale-[1.02]' : 'cursor-grab active:cursor-grabbing hover:shadow-hover'
       }`}
     >
