@@ -43,7 +43,10 @@ export function GCalBusyBlock({
     ? { width: 180, height: Math.max(height, 32) }
     : {
       position: 'absolute',
-      top, height: displayHeight,
+      top,
+      // See CalendarTaskBlock: the hover delete button needs room that a very
+      // short event's own height doesn't have — only grow it while "front".
+      height: front ? Math.max(displayHeight, 34) : displayHeight,
       left: front ? '0%' : left,
       width: front ? '100%' : width,
       opacity: isDragging ? 0.35 : 1,

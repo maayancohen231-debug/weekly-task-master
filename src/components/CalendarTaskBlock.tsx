@@ -63,7 +63,12 @@ export function CalendarTaskBlock({
     ? { width: 180, height: Math.max(height, 32) }
     : {
       position: 'absolute',
-      top, height: displayHeight,
+      top,
+      // The hover icon row (color/calendar/delete buttons) needs ~34px of height to
+      // fit without spilling past the block — shorter blocks (a 30min task at default
+      // zoom is ~16px) would otherwise have the icons overflow into whatever's below.
+      // Only bump it while "front" (hovered), so the resting grid layout is untouched.
+      height: front ? Math.max(displayHeight, 34) : displayHeight,
       left: front ? '0%' : left,
       width: front ? '100%' : width,
       opacity: isDragging ? 0.35 : 1,
