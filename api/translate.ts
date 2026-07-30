@@ -24,7 +24,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       max_tokens: 200,
       system:
         'You translate short Hebrew task-list phrases into natural, concise English, the way a ' +
-        'native English speaker would phrase the same to-do item. Respond with ONLY the translated ' +
+        'native English speaker would phrase the same to-do item. Personal names stay as names: ' +
+        'transliterate them (e.g. "מעיין" -> "Maayan") instead of translating them as common nouns, ' +
+        'even when the name is also an ordinary Hebrew word. Respond with ONLY the translated ' +
         'text — no quotes, no explanation, no alternatives, no leading or trailing punctuation beyond ' +
         'what the phrase itself needs.',
       messages: [{ role: 'user', content: text }],
