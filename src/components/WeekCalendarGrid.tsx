@@ -127,7 +127,7 @@ export function WeekCalendarGrid({
 
   return (
     <div className="relative flex-1 flex bg-card rounded-2xl shadow-card overflow-hidden min-w-0 min-h-0">
-      <div className="absolute top-1.5 right-1.5 z-20 flex items-center gap-0.5 bg-card/95 rounded-lg shadow-sm-custom border border-border/40 p-0.5">
+      <div className="absolute top-1.5 right-1.5 z-40 flex items-center gap-0.5 bg-card/95 rounded-lg shadow-sm-custom border border-border/40 p-0.5">
         <button
           onClick={() => zoomBy(-ZOOM_STEP)}
           disabled={pxPerHour <= ZOOM_MIN}
