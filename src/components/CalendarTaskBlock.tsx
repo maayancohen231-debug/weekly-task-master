@@ -53,10 +53,10 @@ export function CalendarTaskBlock({
   }, [calendars, task.calendarId, task.content]);
   const eventColor = resolvedCalendar?.backgroundColor;
 
-  // Cascaded/stacked events are intentionally narrower than the column and
-  // partly covered by design — but that also means their text is partly
-  // truncated by default. Bringing one to front (hover/click) also expands
-  // it to the column's full width so it's actually readable, not just on top.
+  // Side-by-side overlapping events are intentionally narrower than the
+  // column (each gets an equal slice) — but that also means their text is
+  // partly truncated by default. Bringing one to front (hover/click) also
+  // expands it to the column's full width so it's actually readable.
   const front = isFront && !isDragging && resizeDeltaPx === null;
 
   const style: React.CSSProperties = isOverlay

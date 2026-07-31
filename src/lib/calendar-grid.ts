@@ -61,24 +61,24 @@ export interface OverlapLayout {
   totalCols: number;
 }
 
-const CASCADE_WIDTH_PCT = 88;
-const CASCADE_OFFSET_PCT = 13;
+const SIDE_BY_SIDE_GAP_PCT = 3;
 
 /**
  * Turns a column index / column count from layoutOverlaps into an on-screen
- * position — concurrent events keep the same width regardless of how many
- * overlap and stack on top of one another, each offset just enough that the
- * one(s) underneath still peek out from behind it (cascading/deck-of-cards
- * style), instead of splitting the column width N ways. Z-order follows
- * column index so later-starting events sit on top by default; components
- * are expected to bump z-index further on hover/interaction so a covered
- * block can still be brought fully to the front to read.
+ * position — concurrent events split the column width N ways and sit fully
+ * side by side (Google Calendar style), with a thin gap between them so
+ * neither one's text is ever hidden behind another. Z-order follows column
+ * index so later-starting events sit slightly on top at the seam; components
+ * are expected to bump z-index further on hover/interaction so a block can
+ * still be brought fully to the front (full column width) to read the whole
+ * title when the side-by-side slice truncates it.
  */
 export function cascadePosition(col: number, totalCols: number): { leftPct: number; widthPct: number; z: number } {
   if (totalCols <= 1) return { leftPct: 0, widthPct: 100, z: 5 };
-  const maxLeft = 100 - CASCADE_WIDTH_PCT;
-  const leftPct = Math.min(col * CASCADE_OFFSET_PCT, maxLeft);
-  return { leftPct, widthPct: CASCADE_WIDTH_PCT, z: 5 + col };
+  const slotPct = 100 / totalCols;
+  const leftPct = col * slotPct;
+  const widthPct = Math.max(slotPct - SIDE_BY_SIDE_GAP_PCT, slotPct * 0.7);
+  return { leftPct, widthPct, z: 5 + col };
 }
 
 const GRID_TOTAL_MINUTES = (GRID_END_HOUR - GRID_START_HOUR) * 60;

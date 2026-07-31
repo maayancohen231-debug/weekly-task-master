@@ -16,7 +16,7 @@ import {
   type SyncedEventInfo, type GCalBusyEvent, type GCalCalendar,
 } from '@/services/googleCalendar';
 import { WeekCalendarGrid } from '@/components/WeekCalendarGrid';
-import { TaskBankSidebar } from '@/components/TaskBankSidebar';
+import { TaskSidebarPanel } from '@/components/TaskSidebarPanel';
 import { CalendarTaskBlock } from '@/components/CalendarTaskBlock';
 import { GCalBusyBlock } from '@/components/GCalBusyBlock';
 import { StatsCard } from '@/components/StatsCard';
@@ -1061,7 +1061,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
           <DndContext sensors={sensors} collisionDetection={pointerWithin}
             onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2 scroll-thin">
-              <TaskBankSidebar
+              <TaskSidebarPanel
                 tasks={bankTasks}
                 onAddTask={addUnscheduledTask}
                 onDelete={deleteTask}
@@ -1069,8 +1069,11 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 onToggleDaily={toggleDaily}
                 onSetColor={setTaskColor}
                 onSplitTask={splitTask}
+                libraryTasks={libraryTasks}
+                onAddLibraryTask={addLibraryTask}
+                onDeleteLibraryTask={deleteLibraryTask}
+                onSetLibraryColor={setLibraryTaskColor}
               />
-              <LibraryPanel libraryTasks={libraryTasks} onAddLibraryTask={addLibraryTask} onDeleteLibraryTask={deleteLibraryTask} onSetLibraryColor={setLibraryTaskColor} />
               <StatsCard tasks={tasks} progress={progress} />
               <WeeklyGoals goals={goals} tasks={tasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
             </div>

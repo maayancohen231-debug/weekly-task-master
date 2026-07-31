@@ -94,9 +94,11 @@ interface LibraryPanelProps {
   onAddLibraryTask: (task: LibraryTask) => void;
   onDeleteLibraryTask: (id: string) => void;
   onSetLibraryColor: (id: string, color: TaskColor) => void;
+  /** Skip the card wrapper/title — used when embedded inside TaskSidebarPanel's tabs. */
+  bare?: boolean;
 }
 
-export function LibraryPanel({ libraryTasks, onAddLibraryTask, onDeleteLibraryTask, onSetLibraryColor }: LibraryPanelProps) {
+export function LibraryPanel({ libraryTasks, onAddLibraryTask, onDeleteLibraryTask, onSetLibraryColor, bare = false }: LibraryPanelProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [isTranslating, setIsTranslating] = useState(false);
@@ -127,18 +129,20 @@ export function LibraryPanel({ libraryTasks, onAddLibraryTask, onDeleteLibraryTa
     setIsAdding(false);
   };
 
-  return (
-    <div className="bg-card rounded-2xl shadow-card p-4">
+  const body = (
+    <>
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-sm font-bold text-foreground">Task Library</h3>
+        {bare
+          ? <p className="text-[11px] text-muted-foreground/50">Drag items into a day column</p>
+          : <h3 className="text-sm font-bold text-foreground">Task Library</h3>}
         <button
           onClick={() => setIsAdding(!isAdding)}
-          className="p-1 text-muted-foreground hover:text-foreground rounded transition-base"
+          className="p-1 text-muted-foreground hover:text-foreground rounded transition-base shrink-0"
         >
           <Plus size={16} />
         </button>
       </div>
-      <p className="text-[11px] text-muted-foreground/50 mb-3">Drag items into a day column</p>
+      {!bare && <p className="text-[11px] text-muted-foreground/50 mb-3">Drag items into a day column</p>}
 
       {isAdding && (
         <div className="mb-3">
@@ -210,6 +214,9 @@ export function LibraryPanel({ libraryTasks, onAddLibraryTask, onDeleteLibraryTa
           <p className="text-[11px] text-muted-foreground/30 text-center py-4 italic">No tasks yet</p>
         )}
       </div>
-    </div>
+    </>
   );
+
+  if (bare) return body;
+  return <div className="bg-card rounded-2xl shadow-card p-4">{body}</div>;
 }

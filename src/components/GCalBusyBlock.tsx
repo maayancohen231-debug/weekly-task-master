@@ -35,8 +35,8 @@ export function GCalBusyBlock({
   const displayHeight = resizeDeltaPx !== null ? Math.max(20, height + resizeDeltaPx) : height;
   const compact = displayHeight < 40;
   const color = event.calendarColor;
-  // See CalendarTaskBlock: cascaded blocks are narrower/partly covered by
-  // design, so bring-to-front also expands to full width to be readable.
+  // See CalendarTaskBlock: side-by-side overlapping blocks are narrower than
+  // the column, so bring-to-front also expands to full width to be readable.
   const front = isFront && !isDragging && resizeDeltaPx === null;
 
   const style: React.CSSProperties = isOverlay

@@ -1,10 +1,9 @@
 import { useRef, useState } from 'react';
-import { useDraggable, useDroppable } from '@dnd-kit/core';
+import { useDraggable } from '@dnd-kit/core';
 import { Plus, Trash2, GripVertical, CheckCircle2, Repeat, Palette, Scissors, Loader2 } from 'lucide-react';
 import type { Task, TaskColor } from '@/lib/task-types';
 import { TASK_COLORS } from '@/lib/task-types';
 import { statusClasses, statusBorderClasses, statusIconClasses, colorDotClasses, colorBorderOverrides } from '@/lib/task-styles';
-import { BANK_ID } from '@/lib/calendar-grid';
 
 interface BankItemProps {
   task: Task;
@@ -112,7 +111,6 @@ interface TaskBankSidebarProps {
 export function TaskBankSidebar({
   tasks, onAddTask, onDelete, onCycleStatus, onToggleDaily, onSetColor, onSplitTask,
 }: TaskBankSidebarProps) {
-  const { setNodeRef, isOver } = useDroppable({ id: BANK_ID });
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -139,17 +137,13 @@ export function TaskBankSidebar({
   };
 
   return (
-    <div
-      ref={setNodeRef}
-      className={`bg-card rounded-2xl shadow-card p-4 flex flex-col transition-base ${isOver ? 'ring-2 ring-primary/20 shadow-hover' : ''}`}
-    >
+    <div className="flex flex-col">
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-sm font-bold text-foreground">Task Bank</h3>
-        <button onClick={openEditor} className="p-1 text-muted-foreground hover:text-foreground rounded transition-base">
+        <p className="text-[11px] text-muted-foreground/50">Drag a task onto the calendar to schedule it</p>
+        <button onClick={openEditor} className="p-1 text-muted-foreground hover:text-foreground rounded transition-base shrink-0">
           <Plus size={16} />
         </button>
       </div>
-      <p className="text-[11px] text-muted-foreground/50 mb-3">Drag a task onto the calendar to schedule it</p>
 
       {isEditing && (
         <div className="mb-2 flex flex-col gap-1.5">
