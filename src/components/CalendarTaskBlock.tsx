@@ -17,7 +17,7 @@ interface CalendarTaskBlockProps {
   left: string;
   width: string;
   onDelete: (id: string) => void;
-  onCycleStatus: (id: string) => void;
+  onEdit?: (id: string, updates: { content?: string; startTime?: string }) => void;
   onSetColor: (id: string, color: TaskColor) => void;
   onResize?: (id: string, durationMinutes: number) => void;
   calendars?: GCalCalendar[];
@@ -29,11 +29,14 @@ interface CalendarTaskBlockProps {
 }
 
 export function CalendarTaskBlock({
-  task, top, height, left, width, onDelete, onCycleStatus, onSetColor, onResize, calendars, onSetCalendar,
+  task, top, height, left, width, onDelete, onEdit, onSetColor, onResize, calendars, onSetCalendar,
   isSynced = false, isOverlay = false, zIndex = 5, pxPerMinute = BASE_PX_PER_MINUTE,
 }: CalendarTaskBlockProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editContent, setEditContent] = useState(task.content);
+  const [editTime, setEditTime] = useState(task.startTime ?? '');
   const [resizeDeltaPx, setResizeDeltaPx] = useState<number | null>(null);
   const [isFront, setIsFront] = useState(false);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id });
@@ -76,6 +79,12 @@ export function CalendarTaskBlock({
       ...(eventColor ? { backgroundColor: hexToRgba(eventColor, 0.85), borderLeft: `3px solid ${eventColor}` } : {}),
     };
 
+  const saveEdit = () => {
+    if (!onEdit) return;
+    onEdit(task.id, { content: editContent.trim() || task.content, startTime: editTime || task.startTime });
+    setShowEditForm(false);
+  };
+
   const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!onResize) return;
     e.stopPropagation();
@@ -110,7 +119,12 @@ export function CalendarTaskBlock({
       style={style}
       {...attributes}
       {...listeners}
-      onClick={() => { onCycleStatus(task.id); setIsFront(true); }}
+      onClick={() => {
+        setEditContent(task.content);
+        setEditTime(task.startTime ?? '');
+        setShowEditForm(v => !v);
+        setIsFront(true);
+      }}
       onMouseEnter={() => setIsFront(true)}
       onMouseLeave={() => setIsFront(false)}
       title={task.content}
@@ -209,6 +223,44 @@ export function CalendarTaskBlock({
           className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 flex items-center justify-center transition-base"
         >
           <span className="w-6 h-0.5 rounded-full bg-foreground/30" />
+        </div>
+      )}
+
+      {showEditForm && onEdit && (
+        <div
+          className="absolute left-0 top-full mt-1 z-50 bg-card rounded-xl shadow-overlay border border-border p-2 flex flex-col gap-1.5 w-48"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setShowEditForm(false); }}
+            dir="auto"
+            autoFocus
+            placeholder="Task name..."
+            className="w-full px-2 py-1.5 bg-muted border-none rounded-lg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
+          <input
+            type="time"
+            value={editTime}
+            onChange={(e) => setEditTime(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setShowEditForm(false); }}
+            className="w-full px-2 py-1.5 bg-muted border-none rounded-lg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
+          <div className="flex gap-1.5">
+            <button
+              onClick={saveEdit}
+              className="flex-1 py-1 text-xs font-medium bg-primary text-primary-foreground rounded-md transition-base"
+            >
+              Save
+            </button>
+            <button
+              onClick={() => setShowEditForm(false)}
+              className="px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground rounded-md transition-base"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
     </div>

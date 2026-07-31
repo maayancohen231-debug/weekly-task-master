@@ -485,9 +485,13 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  // Tasks created via the Bank/Library — excludes plain calendar events quick-added
+  // by clicking directly on the grid, which aren't tracked as to-dos.
+  const trackedTasks = useMemo(() => tasks.filter(t => !t.isCalendarOnly), [tasks]);
+
   const progress = useMemo(() => {
     let total = 0, done = 0;
-    tasks.forEach(t => {
+    trackedTasks.forEach(t => {
       if (t.isDaily) {
         DAYS.forEach(d => { total++; if ((t.dailyStatuses?.[d.id] ?? t.status) === 'green') done++; });
       } else {
@@ -496,7 +500,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       }
     });
     return total === 0 ? 0 : Math.round((done / total) * 100);
-  }, [tasks]);
+  }, [trackedTasks]);
 
   // Unscheduled, not-yet-done tasks (no startTime) — the task bank.
   const bankTasks = useMemo(() => tasks.filter(t => !t.startTime && t.status !== 'green'), [tasks]);
@@ -625,7 +629,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       id: newId, content: translated,
       originalText: /[֐-׿]/.test(text) ? text : undefined,
       status: 'none', color: 'none', dayId, isDaily: false, sortOrder: prev.length,
-      startTime: time, durationMinutes: 30,
+      startTime: time, durationMinutes: 30, isCalendarOnly: true,
     }]);
     const dayIndex = DAYS.findIndex(d => d.id === dayId);
     syncTaskToCalendar(newId, translated, dayIndex, time, 30);
@@ -715,6 +719,25 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     const realId = getRealId(id);
     setTasks(prev => prev.map(t => t.id === realId ? { ...t, color } : t));
   }, [setTasks]);
+
+  const editTask = useCallback((id: string, updates: { content?: string; startTime?: string }) => {
+    const realId = getRealId(id);
+    const task = tasks.find(t => t.id === realId);
+    if (!task) return;
+    const newContent = updates.content?.trim() || task.content;
+    const newStartTime = updates.startTime ?? task.startTime;
+    setTasks(prev => prev.map(t => t.id === realId ? { ...t, content: newContent, startTime: newStartTime } : t));
+    if (!newStartTime) return;
+    const duration = task.durationMinutes ?? 30;
+    if (task.isDaily) {
+      DAYS.forEach((d, idx) => {
+        syncTaskToCalendar(`${realId}_${d.id}`, newContent, idx, newStartTime, duration, task.calendarId);
+      });
+    } else {
+      const dayIndex = DAYS.findIndex(d => d.id === task.dayId);
+      syncTaskToCalendar(realId, newContent, dayIndex, newStartTime, duration, task.calendarId);
+    }
+  }, [tasks, setTasks, syncTaskToCalendar]);
 
   const resizeTask = useCallback((id: string, durationMinutes: number) => {
     const realId = getRealId(id);
@@ -1074,8 +1097,8 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 onDeleteLibraryTask={deleteLibraryTask}
                 onSetLibraryColor={setLibraryTaskColor}
               />
-              <StatsCard tasks={tasks} progress={progress} />
-              <WeeklyGoals goals={goals} tasks={tasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
+              <StatsCard tasks={trackedTasks} progress={progress} />
+              <WeeklyGoals goals={goals} tasks={trackedTasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
             </div>
 
             <div className="flex-1 flex flex-col gap-3 min-h-0 min-w-0">
@@ -1095,7 +1118,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 busyEventsByDay={visibleBusyEventsByDay}
                 syncedTaskIds={syncedTaskIds}
                 onDelete={deleteTask}
-                onCycleStatus={cycleStatus}
+                onEdit={editTask}
                 onSetColor={setTaskColor}
                 onResize={resizeTask}
                 calendars={calendars}
@@ -1110,7 +1133,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
               {activeTask ? (
                 <CalendarTaskBlock
                   task={activeTask} top={0} height={36} left="0" width="100%"
-                  onDelete={deleteTask} onCycleStatus={cycleStatus} onSetColor={setTaskColor}
+                  onDelete={deleteTask} onSetColor={setTaskColor}
                   isOverlay
                 />
               ) : null}
@@ -1124,11 +1147,11 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
           <>
             <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2 scroll-thin">
               <LibraryPanel libraryTasks={libraryTasks} onAddLibraryTask={addLibraryTask} onDeleteLibraryTask={deleteLibraryTask} onSetLibraryColor={setLibraryTaskColor} />
-              <StatsCard tasks={tasks} progress={progress} />
-              <WeeklyGoals goals={goals} tasks={tasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
+              <StatsCard tasks={trackedTasks} progress={progress} />
+              <WeeklyGoals goals={goals} tasks={trackedTasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
             </div>
             <DayListView
-              tasks={tasks}
+              tasks={trackedTasks}
               weekStart={weekStart}
               todayDayId={todayDayId}
               setTasks={setTasks}

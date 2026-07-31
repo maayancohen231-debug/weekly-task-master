@@ -28,7 +28,7 @@ interface WeekCalendarGridProps {
   busyEventsByDay: Record<string, GCalBusyEvent[]>;
   syncedTaskIds: Set<string>;
   onDelete: (id: string) => void;
-  onCycleStatus: (id: string) => void;
+  onEdit?: (id: string, updates: { content?: string; startTime?: string }) => void;
   onSetColor: (id: string, color: TaskColor) => void;
   onResize?: (id: string, durationMinutes: number) => void;
   calendars?: GCalCalendar[];
@@ -84,7 +84,7 @@ function dayOfMonth(dateStr: string): string {
 
 export function WeekCalendarGrid({
   days, todayDayId, scheduledTasksByDay, busyEventsByDay, syncedTaskIds,
-  onDelete, onCycleStatus, onSetColor, onResize, calendars, onSetCalendar, onDeleteBusyEvent, onResizeBusyEvent, onQuickAdd,
+  onDelete, onEdit, onSetColor, onResize, calendars, onSetCalendar, onDeleteBusyEvent, onResizeBusyEvent, onQuickAdd,
 }: WeekCalendarGridProps) {
   const tzLabel = useMemo(timezoneLabel, []);
 
@@ -261,7 +261,7 @@ export function WeekCalendarGrid({
                         zIndex={10 + z}
                         pxPerMinute={pxPerMinute}
                         onDelete={onDelete}
-                        onCycleStatus={onCycleStatus}
+                        onEdit={onEdit}
                         onSetColor={onSetColor}
                         onResize={onResize}
                         calendars={calendars}

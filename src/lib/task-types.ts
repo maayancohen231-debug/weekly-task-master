@@ -24,6 +24,9 @@ export interface Task {
   startTime?: string; // "HH:mm", 24h
   durationMinutes?: number;
   calendarId?: string;
+  /** Created by clicking directly on the calendar grid rather than via the Task Bank/Library —
+   * a plain calendar event, not tracked as a to-do (excluded from stats, Bank, and List view). */
+  isCalendarOnly?: boolean;
 }
 
 export interface LibraryTask {
