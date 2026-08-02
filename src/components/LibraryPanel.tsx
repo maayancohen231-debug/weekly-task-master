@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Plus, Trash2, GripVertical, Palette, Clock } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Palette, Clock, Hourglass } from 'lucide-react';
 import { translateText } from '@/lib/translate';
 import type { LibraryTask, TaskColor } from '@/lib/task-types';
 import { TASK_COLORS } from '@/lib/task-types';
@@ -10,13 +10,15 @@ import { colorDotClasses, colorBorderOverrides } from '@/lib/task-styles';
 const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120];
 
 function DraggableLibraryItem({
-  task, onDelete, onSetColor,
+  task, onDelete, onSetColor, onSetDuration,
 }: {
   task: LibraryTask;
   onDelete: (id: string) => void;
   onSetColor: (id: string, color: TaskColor) => void;
+  onSetDuration: (id: string, durationMinutes: number | undefined) => void;
 }) {
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showDurationPicker, setShowDurationPicker] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
   const taskColor = task.color ?? 'none';
@@ -48,8 +50,49 @@ function DraggableLibraryItem({
           {task.startTime}
         </span>
       )}
+      {!task.startTime && task.durationMinutes && (
+        <span className="shrink-0 flex items-center gap-0.5 text-[10px] text-muted-foreground/60" title={`Preset duration: ${task.durationMinutes} min`}>
+          <Hourglass size={10} />
+          {task.durationMinutes}m
+        </span>
+      )}
 
       <div className="opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 flex items-center gap-0.5 transition-base">
+        <div className="relative">
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowDurationPicker(v => !v); }}
+            className="p-0.5 text-muted-foreground/30 hover:text-foreground/60 rounded transition-base"
+            title="Preset duration"
+          >
+            <Hourglass size={11} />
+          </button>
+          {showDurationPicker && (
+            <div
+              className="absolute right-0 top-full mt-1 z-50 bg-card rounded-xl shadow-overlay border border-border p-1.5 flex flex-col gap-0.5 min-w-[110px]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {DURATION_OPTIONS.map(min => (
+                <button
+                  key={min}
+                  onClick={() => { onSetDuration(task.id, min); setShowDurationPicker(false); }}
+                  className={`px-2 py-1 rounded-lg text-[11px] text-left transition-base ${
+                    task.durationMinutes === min ? 'bg-muted font-semibold text-foreground' : 'text-foreground/80 hover:bg-muted'
+                  }`}
+                >
+                  {min} min
+                </button>
+              ))}
+              {task.durationMinutes && (
+                <button
+                  onClick={() => { onSetDuration(task.id, undefined); setShowDurationPicker(false); }}
+                  className="px-2 py-1 rounded-lg text-[11px] text-left text-muted-foreground hover:bg-muted transition-base"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          )}
+        </div>
         <div className="relative">
           <button
             onClick={(e) => { e.stopPropagation(); setShowColorPicker(v => !v); }}
@@ -94,22 +137,25 @@ interface LibraryPanelProps {
   onAddLibraryTask: (task: LibraryTask) => void;
   onDeleteLibraryTask: (id: string) => void;
   onSetLibraryColor: (id: string, color: TaskColor) => void;
+  onSetLibraryDuration: (id: string, durationMinutes: number | undefined) => void;
   /** Skip the card wrapper/title — used when embedded inside TaskSidebarPanel's tabs. */
   bare?: boolean;
 }
 
-export function LibraryPanel({ libraryTasks, onAddLibraryTask, onDeleteLibraryTask, onSetLibraryColor, bare = false }: LibraryPanelProps) {
+export function LibraryPanel({ libraryTasks, onAddLibraryTask, onDeleteLibraryTask, onSetLibraryColor, onSetLibraryDuration, bare = false }: LibraryPanelProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [isTranslating, setIsTranslating] = useState(false);
   const [timeEnabled, setTimeEnabled] = useState(false);
   const [startTime, setStartTime] = useState('09:00');
+  const [durationEnabled, setDurationEnabled] = useState(false);
   const [durationMinutes, setDurationMinutes] = useState(60);
 
   const resetForm = () => {
     setInputValue('');
     setTimeEnabled(false);
     setStartTime('09:00');
+    setDurationEnabled(false);
     setDurationMinutes(60);
   };
 
@@ -122,7 +168,7 @@ export function LibraryPanel({ libraryTasks, onAddLibraryTask, onDeleteLibraryTa
       content: translated,
       originalText: /[\u0590-\u05FF]/.test(inputValue) ? inputValue : undefined,
       startTime: timeEnabled ? startTime : undefined,
-      durationMinutes: timeEnabled ? durationMinutes : undefined,
+      durationMinutes: (timeEnabled || durationEnabled) ? durationMinutes : undefined,
     });
     resetForm();
     setIsTranslating(false);
@@ -157,14 +203,38 @@ export function LibraryPanel({ libraryTasks, onAddLibraryTask, onDeleteLibraryTa
             className="w-full px-3 py-2 bg-muted border-none rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/40"
           />
 
-          <button
-            type="button"
-            onClick={() => setTimeEnabled(v => !v)}
-            className={`flex items-center gap-1 mt-1.5 text-[11px] font-medium transition-base ${timeEnabled ? 'text-primary' : 'text-muted-foreground/50 hover:text-muted-foreground'}`}
-          >
-            <Clock size={11} />
-            {timeEnabled ? 'Remove time' : 'Add a time'}
-          </button>
+          <div className="flex items-center gap-3 mt-1.5">
+            <button
+              type="button"
+              onClick={() => setTimeEnabled(v => !v)}
+              className={`flex items-center gap-1 text-[11px] font-medium transition-base ${timeEnabled ? 'text-primary' : 'text-muted-foreground/50 hover:text-muted-foreground'}`}
+            >
+              <Clock size={11} />
+              {timeEnabled ? 'Remove time' : 'Add a time'}
+            </button>
+            {!timeEnabled && (
+              <button
+                type="button"
+                onClick={() => setDurationEnabled(v => !v)}
+                className={`flex items-center gap-1 text-[11px] font-medium transition-base ${durationEnabled ? 'text-primary' : 'text-muted-foreground/50 hover:text-muted-foreground'}`}
+              >
+                <Hourglass size={11} />
+                {durationEnabled ? 'Remove duration' : 'Add a duration'}
+              </button>
+            )}
+          </div>
+
+          {!timeEnabled && durationEnabled && (
+            <select
+              value={durationMinutes}
+              onChange={(e) => setDurationMinutes(Number(e.target.value))}
+              className="w-full mt-1.5 px-2 py-1.5 bg-muted border-none rounded-lg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              {DURATION_OPTIONS.map(min => (
+                <option key={min} value={min}>{min} min</option>
+              ))}
+            </select>
+          )}
 
           {timeEnabled && (
             <div className="flex items-center gap-1.5 mt-1.5">
@@ -207,7 +277,7 @@ export function LibraryPanel({ libraryTasks, onAddLibraryTask, onDeleteLibraryTa
       <div className="flex flex-col gap-1.5 min-h-[60px]">
         <SortableContext items={libraryTasks} strategy={verticalListSortingStrategy}>
           {libraryTasks.map((t) => (
-            <DraggableLibraryItem key={t.id} task={t} onDelete={onDeleteLibraryTask} onSetColor={onSetLibraryColor} />
+            <DraggableLibraryItem key={t.id} task={t} onDelete={onDeleteLibraryTask} onSetColor={onSetLibraryColor} onSetDuration={onSetLibraryDuration} />
           ))}
         </SortableContext>
         {libraryTasks.length === 0 && !isAdding && (

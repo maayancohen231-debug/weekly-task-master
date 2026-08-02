@@ -107,7 +107,7 @@ export function WeekCalendarGrid({
   const columnHeight = (GRID_END_HOUR - GRID_START_HOUR) * 60 * pxPerMinute;
   // A week's worth of narrow columns needs a wide scroll surface; a single
   // focused day (Day View) shouldn't force the same width and an empty gap.
-  const gridMinWidth = Math.max(400, 56 + days.length * (days.length === 1 ? 320 : 104));
+  const gridMinWidth = Math.max(400, 56 + days.length * (days.length === 1 ? 420 : 104));
 
   const [quickAdd, setQuickAdd] = useState<{ dayId: string; time: string } | null>(null);
   const [quickAddValue, setQuickAddValue] = useState('');
@@ -197,7 +197,7 @@ export function WeekCalendarGrid({
             const layout = layoutOverlaps(intervals);
 
             return (
-              <div key={day.id} className={`flex-1 min-w-[104px] border-r border-border/30 last:border-r-0 ${isToday ? 'bg-primary/[0.03]' : ''}`}>
+              <div key={day.id} className={`${days.length === 1 ? 'w-[420px] shrink-0' : 'flex-1 min-w-[104px]'} border-r border-border/30 last:border-r-0 ${isToday ? 'bg-primary/[0.03]' : ''}`}>
                 <div className="h-[44px] flex flex-col items-center justify-center gap-0.5 border-b border-border/40 sticky top-0 z-20 bg-card">
                   <p className={`text-[10px] font-semibold tracking-wide uppercase ${isToday ? 'text-primary' : 'text-muted-foreground'}`}>
                     {day.label.slice(0, 3)}

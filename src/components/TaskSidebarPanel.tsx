@@ -19,6 +19,7 @@ interface TaskSidebarPanelProps {
   onAddLibraryTask: (task: LibraryTask) => void;
   onDeleteLibraryTask: (id: string) => void;
   onSetLibraryColor: (id: string, color: TaskColor) => void;
+  onSetLibraryDuration: (id: string, durationMinutes: number | undefined) => void;
 }
 
 /**
@@ -30,7 +31,7 @@ interface TaskSidebarPanelProps {
  */
 export function TaskSidebarPanel({
   tasks, onAddTask, onDelete, onCycleStatus, onToggleDaily, onSetColor, onSplitTask,
-  libraryTasks, onAddLibraryTask, onDeleteLibraryTask, onSetLibraryColor,
+  libraryTasks, onAddLibraryTask, onDeleteLibraryTask, onSetLibraryColor, onSetLibraryDuration,
 }: TaskSidebarPanelProps) {
   const { setNodeRef, isOver } = useDroppable({ id: BANK_ID });
   const [tab, setTab] = useState<Tab>('bank');
@@ -76,6 +77,7 @@ export function TaskSidebarPanel({
           onAddLibraryTask={onAddLibraryTask}
           onDeleteLibraryTask={onDeleteLibraryTask}
           onSetLibraryColor={onSetLibraryColor}
+          onSetLibraryDuration={onSetLibraryDuration}
         />
       )}
     </div>

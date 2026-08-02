@@ -505,6 +505,13 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   // Unscheduled, not-yet-done tasks (no startTime) — the task bank.
   const bankTasks = useMemo(() => tasks.filter(t => !t.startTime && t.status !== 'green'), [tasks]);
 
+  // In Day view the sidebar bank narrows to just the focused day's backlog —
+  // showing the full week's bank while looking at one day was more noise than help.
+  const bankTasksForPanel = useMemo(
+    () => plannerView === 'day' ? bankTasks.filter(t => t.dayId === selectedDayId) : bankTasks,
+    [bankTasks, plannerView, selectedDayId],
+  );
+
   // Scheduled tasks (have startTime), bucketed by day — isDaily tasks appear
   // in every day column with an independently-clickable status per day.
   const scheduledTasksByDay = useMemo(() => {
@@ -812,6 +819,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   const addLibraryTask = useCallback((t: LibraryTask) => setLibraryTasks(prev => [t, ...prev]), [setLibraryTasks]);
   const deleteLibraryTask = useCallback((id: string) => setLibraryTasks(prev => prev.filter(t => t.id !== id)), [setLibraryTasks]);
   const setLibraryTaskColor = useCallback((id: string, color: TaskColor) => setLibraryTasks(prev => prev.map(t => t.id === id ? { ...t, color } : t)), [setLibraryTasks]);
+  const setLibraryTaskDuration = useCallback((id: string, durationMinutes: number | undefined) => setLibraryTasks(prev => prev.map(t => t.id === id ? { ...t, durationMinutes } : t)), [setLibraryTasks]);
 
   const addGoal = useCallback((name: string, target: number) => {
     setGoals(prev => [...prev, { id: genId(), name, targetCount: target }]);
@@ -1085,7 +1093,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
             onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2 scroll-thin">
               <TaskSidebarPanel
-                tasks={bankTasks}
+                tasks={bankTasksForPanel}
                 onAddTask={addUnscheduledTask}
                 onDelete={deleteTask}
                 onCycleStatus={cycleStatus}
@@ -1096,6 +1104,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 onAddLibraryTask={addLibraryTask}
                 onDeleteLibraryTask={deleteLibraryTask}
                 onSetLibraryColor={setLibraryTaskColor}
+                onSetLibraryDuration={setLibraryTaskDuration}
               />
               <StatsCard tasks={trackedTasks} progress={progress} />
               <WeeklyGoals goals={goals} tasks={trackedTasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
@@ -1146,7 +1155,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
         ) : (
           <>
             <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2 scroll-thin">
-              <LibraryPanel libraryTasks={libraryTasks} onAddLibraryTask={addLibraryTask} onDeleteLibraryTask={deleteLibraryTask} onSetLibraryColor={setLibraryTaskColor} />
+              <LibraryPanel libraryTasks={libraryTasks} onAddLibraryTask={addLibraryTask} onDeleteLibraryTask={deleteLibraryTask} onSetLibraryColor={setLibraryTaskColor} onSetLibraryDuration={setLibraryTaskDuration} />
               <StatsCard tasks={trackedTasks} progress={progress} />
               <WeeklyGoals goals={goals} tasks={trackedTasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
             </div>
