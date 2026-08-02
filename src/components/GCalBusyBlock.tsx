@@ -107,7 +107,7 @@ export function GCalBusyBlock({
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(event); }}
           title="Delete from Google Calendar"
-          className="absolute top-0.5 right-0.5 p-0.5 rounded opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 text-foreground/40 hover:text-destructive bg-inherit transition-base"
+          className="absolute top-0.5 right-0.5 p-0.5 rounded-md shadow-sm-custom opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 text-foreground/40 hover:text-destructive bg-card/95 transition-base"
         >
           <Trash2 size={11} />
         </button>

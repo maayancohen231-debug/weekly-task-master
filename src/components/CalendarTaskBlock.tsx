@@ -148,7 +148,10 @@ export function CalendarTaskBlock({
         )}
       </div>
 
-      <div className="absolute top-0.5 right-0.5 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 flex items-center gap-0.5 bg-inherit transition-base">
+      {/* A solid chip, not bg-inherit — stacking a translucent background on top of the
+          block's own translucent background double-composites into a visibly lighter,
+          mismatched patch instead of blending in. */}
+      <div className="absolute top-0.5 right-0.5 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 flex items-center gap-0.5 bg-card/95 rounded-md shadow-sm-custom transition-base">
         <div className="relative">
           <button
             onClick={(e) => { e.stopPropagation(); setShowColorPicker(v => !v); }}
