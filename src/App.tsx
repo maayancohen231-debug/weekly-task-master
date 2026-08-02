@@ -12,7 +12,7 @@ import {
   isConfigured, isTokenValid, requestToken,
   refreshAccessToken, getStoredRefreshToken, clearAllTokens,
   loadSyncedEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
-  saveSyncedEvent, fetchWeekEvents, fetchCalendars, matchCalendarName,
+  saveSyncedEvent, fetchWeekEvents, fetchCalendars, matchCalendarName, resolveLearnedOrRuleMatch,
   type SyncedEventInfo, type GCalBusyEvent, type GCalCalendar,
 } from '@/services/googleCalendar';
 import { WeekCalendarGrid } from '@/components/WeekCalendarGrid';
@@ -88,6 +88,9 @@ interface StorageData {
   /** Per-week completion state: weekKey -> goalId -> dayId -> done. */
   dailyGoalDoneByWeek: Record<string, Record<string, Record<string, boolean>>>;
   libraryTasks: LibraryTask[];
+  /** Keyword -> Google Calendar id, learned from the user's manual calendar
+   * picks so future tasks with a similar keyword auto-resolve without asking. */
+  learnedCalendarKeywords: Record<string, string>;
 }
 
 /**
@@ -132,10 +135,11 @@ function loadStorage(): StorageData {
         goalsByWeek: parsed.goalsByWeek ?? {},
         ...migrateDailyGoals(parsed),
         libraryTasks: parsed.libraryTasks ?? [],
+        learnedCalendarKeywords: parsed.learnedCalendarKeywords ?? {},
       };
     }
   } catch { /* ignore */ }
-  return { tasksByWeek: {}, goalsByWeek: {}, dailyGoalNames: [], dailyGoalDoneByWeek: {}, libraryTasks: [] };
+  return { tasksByWeek: {}, goalsByWeek: {}, dailyGoalNames: [], dailyGoalDoneByWeek: {}, libraryTasks: [], learnedCalendarKeywords: {} };
 }
 
 function genId(): string {
@@ -410,6 +414,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     return storageData.dailyGoalNames.map(g => ({ id: g.id, name: g.name, doneByDay: doneForWeek[g.id] ?? {} }));
   }, [storageData, weekKey]);
   const libraryTasks = storageData.libraryTasks;
+  const learnedCalendarKeywords = storageData.learnedCalendarKeywords;
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storageData));
@@ -441,6 +446,15 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
 
   const setLibraryTasks = useCallback((updater: (prev: LibraryTask[]) => LibraryTask[]) => {
     setStorageData(prev => ({ ...prev, libraryTasks: updater(prev.libraryTasks) }));
+  }, []);
+
+  // Remembers a keyword -> calendar pick so matchCalendarOrLearned resolves
+  // the same way next time without asking again.
+  const learnCalendarKeyword = useCallback((keyword: string, calendarId: string) => {
+    setStorageData(prev => ({
+      ...prev,
+      learnedCalendarKeywords: { ...prev.learnedCalendarKeywords, [keyword.toLowerCase()]: calendarId },
+    }));
   }, []);
 
   // Auto-populate current week with any recurring (isDaily) tasks from other weeks
@@ -539,11 +553,30 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   // is still pending.
   const pendingSyncRef = useRef<Set<string>>(new Set());
 
+  // When a task's calendar can't be confidently resolved (no learned pick, no
+  // matching keyword rule) and there's a real choice to make, sync pauses and
+  // this holds what's needed to resume once the user picks — see the "which
+  // calendar" banner below and resolvePendingCalendarAsk.
+  const [pendingCalendarAsk, setPendingCalendarAsk] = useState<
+    { syncKey: string; content: string; dayIndex: number; time: string; duration: number } | null
+  >(null);
+
   const syncTaskToCalendar = useCallback(async (
     syncKey: string, content: string, dayIndex: number, time: string, duration: number, existingCalendarId?: string,
   ) => {
     if (!gcalConnected || calendars.length === 0) return;
-    const calendarId = existingCalendarId ?? matchCalendarName(content, calendars)?.id;
+    let calendarId = existingCalendarId;
+    if (!calendarId) {
+      const confident = resolveLearnedOrRuleMatch(content, calendars, learnedCalendarKeywords);
+      if (confident) {
+        calendarId = confident.id;
+      } else if (calendars.length > 1) {
+        setPendingCalendarAsk({ syncKey, content, dayIndex, time, duration });
+        return;
+      } else {
+        calendarId = matchCalendarName(content, calendars, learnedCalendarKeywords).id;
+      }
+    }
     if (!calendarId) return;
     pendingSyncRef.current.add(syncKey);
     try {
@@ -569,7 +602,31 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     } finally {
       pendingSyncRef.current.delete(syncKey);
     }
-  }, [gcalConnected, calendars, weekStart, syncedEvents]);
+  }, [gcalConnected, calendars, weekStart, syncedEvents, learnedCalendarKeywords]);
+
+  // The user picked a calendar for an ambiguous task from the "which calendar"
+  // banner — remember it (so similar content auto-resolves next time), pin it
+  // on the task itself (so future resyncs of this exact task skip the ask too),
+  // then resume the sync that was paused waiting for this answer.
+  const resolvePendingCalendarAsk = useCallback((calendarId: string) => {
+    if (!pendingCalendarAsk) return;
+    const { syncKey, content, dayIndex, time, duration } = pendingCalendarAsk;
+    learnCalendarKeyword(content, calendarId);
+    const realId = getRealId(syncKey);
+    setTasks(prev => prev.map(t => t.id === realId ? { ...t, calendarId } : t));
+    setPendingCalendarAsk(null);
+    syncTaskToCalendar(syncKey, content, dayIndex, time, duration, calendarId);
+  }, [pendingCalendarAsk, learnCalendarKeyword, setTasks, syncTaskToCalendar]);
+
+  // Skip without picking — syncs to the default calendar this once but
+  // doesn't learn anything, so she's asked again next time.
+  const skipPendingCalendarAsk = useCallback(() => {
+    if (!pendingCalendarAsk) return;
+    const { syncKey, content, dayIndex, time, duration } = pendingCalendarAsk;
+    const fallbackId = matchCalendarName(content, calendars, learnedCalendarKeywords).id;
+    setPendingCalendarAsk(null);
+    syncTaskToCalendar(syncKey, content, dayIndex, time, duration, fallbackId);
+  }, [pendingCalendarAsk, calendars, learnedCalendarKeywords, syncTaskToCalendar]);
 
   const removeSyncedEvents = useCallback((keys: string[]) => {
     keys.forEach(key => {
@@ -1081,6 +1138,32 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
         </div>
       )}
 
+      {pendingCalendarAsk && (
+        <div className="mx-4 mt-3 px-3 py-2.5 bg-primary/10 rounded-xl text-xs flex flex-col gap-2 shrink-0">
+          <div className="flex items-center gap-2">
+            <Calendar size={14} className="shrink-0 text-primary" />
+            <span className="flex-1 break-words text-foreground/80" dir="auto">
+              Which calendar should <span className="font-semibold" dir="auto">"{pendingCalendarAsk.content}"</span> go to? I'll remember this for next time.
+            </span>
+            <button onClick={skipPendingCalendarAsk} className="shrink-0 p-0.5 text-muted-foreground/60 hover:text-foreground transition-base" title="Use the default calendar this once">
+              <X size={14} />
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {calendars.map(cal => (
+              <button
+                key={cal.id}
+                onClick={() => resolvePendingCalendarAsk(cal.id)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-card border border-border hover:border-primary/40 hover:shadow-sm-custom transition-base"
+              >
+                <span className="shrink-0 w-2 h-2 rounded-full" style={{ backgroundColor: cal.backgroundColor ?? '#999' }} />
+                {cal.summary}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {gcalConnected && !gcalSyncError && (
         <p className="mx-4 mt-1.5 text-[10px] text-muted-foreground/50 shrink-0">
           Google Calendar: {calendars.length} calendar{calendars.length === 1 ? '' : 's'} found, {busyEventCount} event{busyEventCount === 1 ? '' : 's'} loaded for this week
@@ -1132,6 +1215,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 onResize={resizeTask}
                 calendars={calendars}
                 onSetCalendar={setTaskCalendar}
+                learnedCalendarKeywords={learnedCalendarKeywords}
                 onDeleteBusyEvent={deleteBusyEvent}
                 onResizeBusyEvent={resizeBusyEvent}
                 onQuickAdd={addScheduledTask}

@@ -488,8 +488,14 @@ const CALENDAR_RULES: Array<{ calKey: string; keywords: string[] }> = [
     keywords: ['mindwell', 'therapy', 'mental health', 'wellbeing', 'ptsd', 'protocol', 'טיפול', 'therapist'],
   },
   {
+    // More specific than the bare "חוסן"/"hosen" keyword below — checked first
+    // so "מחלקת חוסן" routes to the חוסן department calendar, not Duvdevan.
+    calKey: 'חוסן',
+    keywords: ['מחלקת חוסן', 'אירועי חוסן', 'resilience department'],
+  },
+  {
     calKey: 'duvdevan',
-    keywords: ['duvdevan', 'דובדבן', 'cherry'],
+    keywords: ['duvdevan', 'דובדבן', 'cherry', 'חוסן', 'hosen', 'hoshen'],
   },
   {
     calKey: 'friends',
@@ -497,7 +503,7 @@ const CALENDAR_RULES: Array<{ calKey: string; keywords: string[] }> = [
   },
   {
     calKey: 'personal growth',
-    keywords: ['goal', 'habit', 'initiative', 'growth', 'pitch', 'startup', 'regulo', 'hoshen', 'hosen', 'חוסן'],
+    keywords: ['goal', 'habit', 'initiative', 'growth', 'pitch', 'startup', 'regulo'],
   },
   {
     calKey: 'psychology',
@@ -506,10 +512,6 @@ const CALENDAR_RULES: Array<{ calKey: string; keywords: string[] }> = [
   {
     calKey: 'service time',
     keywords: ['volunteer', 'service', 'community', 'reserve', 'casualty', 'wounded', 'injured', 'מילואים', 'שירות'],
-  },
-  {
-    calKey: 'חוסן',
-    keywords: ['מחלקת חוסן', 'אירועי חוסן', 'resilience department'],
   },
   {
     calKey: 'shabbat',
@@ -533,8 +535,25 @@ function findCalByKey(key: string, calendars: GCalCalendar[]): GCalCalendar | un
 
 const DEFAULT_CALENDAR_KEY = 'busy era';
 
-export function matchCalendarName(taskContent: string, calendars: GCalCalendar[]): GCalCalendar {
+/**
+ * Resolves a calendar from the user's own learned keyword->calendar picks
+ * (highest priority — these came from her explicitly choosing) or the
+ * built-in keyword rules. Returns undefined when neither matches, meaning
+ * the caller should ask rather than silently fall back to a default.
+ */
+export function resolveLearnedOrRuleMatch(
+  taskContent: string,
+  calendars: GCalCalendar[],
+  learnedKeywords: Record<string, string> = {},
+): GCalCalendar | undefined {
   const lower = taskContent.toLowerCase();
+
+  for (const [keyword, calendarId] of Object.entries(learnedKeywords)) {
+    if (keyword && lower.includes(keyword)) {
+      const cal = calendars.find(c => c.id === calendarId);
+      if (cal) return cal;
+    }
+  }
 
   for (const rule of CALENDAR_RULES) {
     if (rule.keywords.some(kw => lower.includes(kw))) {
@@ -543,8 +562,17 @@ export function matchCalendarName(taskContent: string, calendars: GCalCalendar[]
     }
   }
 
-  // Default: "In My Busy Era" or primary calendar
+  return undefined;
+}
+
+export function matchCalendarName(
+  taskContent: string,
+  calendars: GCalCalendar[],
+  learnedKeywords: Record<string, string> = {},
+): GCalCalendar {
   return (
+    resolveLearnedOrRuleMatch(taskContent, calendars, learnedKeywords) ??
+    // Default: "In My Busy Era" or primary calendar
     findCalByKey(DEFAULT_CALENDAR_KEY, calendars) ??
     calendars.find(c => c.primary) ??
     calendars[0]

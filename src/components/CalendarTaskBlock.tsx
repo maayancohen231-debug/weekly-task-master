@@ -22,6 +22,7 @@ interface CalendarTaskBlockProps {
   onResize?: (id: string, durationMinutes: number) => void;
   calendars?: GCalCalendar[];
   onSetCalendar?: (id: string, calendarId: string) => void;
+  learnedCalendarKeywords?: Record<string, string>;
   isSynced?: boolean;
   isOverlay?: boolean;
   zIndex?: number;
@@ -30,7 +31,7 @@ interface CalendarTaskBlockProps {
 
 export function CalendarTaskBlock({
   task, top, height, left, width, onDelete, onEdit, onSetColor, onResize, calendars, onSetCalendar,
-  isSynced = false, isOverlay = false, zIndex = 5, pxPerMinute = BASE_PX_PER_MINUTE,
+  learnedCalendarKeywords, isSynced = false, isOverlay = false, zIndex = 5, pxPerMinute = BASE_PX_PER_MINUTE,
 }: CalendarTaskBlockProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
@@ -52,8 +53,8 @@ export function CalendarTaskBlock({
   const resolvedCalendar = useMemo(() => {
     if (!calendars || calendars.length === 0) return undefined;
     if (task.calendarId) return calendars.find(c => c.id === task.calendarId);
-    return matchCalendarName(task.content, calendars);
-  }, [calendars, task.calendarId, task.content]);
+    return matchCalendarName(task.content, calendars, learnedCalendarKeywords);
+  }, [calendars, task.calendarId, task.content, learnedCalendarKeywords]);
   const eventColor = resolvedCalendar?.backgroundColor;
 
   // Side-by-side overlapping events are intentionally narrower than the
