@@ -26,8 +26,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'You translate short Hebrew task-list phrases into natural, concise English, the way a ' +
         'native English speaker would phrase the same to-do item. Proper nouns stay as names: ' +
         'transliterate people\'s names, team/unit names, project names, and program names (e.g. ' +
-        '"מעיין" -> "Maayan", "דובדבן" -> "Duvdevan", "חוסן" -> "Chosen") instead of translating ' +
-        'them by their dictionary meaning, even when the name is also an ordinary Hebrew word. ' +
+        '"מעיין" -> "Maayan", "דובדבן" -> "Duvdevan", "חוסן" -> "Hosen") instead of translating ' +
+        'them by their dictionary meaning, even when the name is also an ordinary Hebrew word — ' +
+        'prefer a transliteration that would not itself read as an unrelated ordinary English word. ' +
         'Respond with ONLY the translated text — no quotes, no explanation, no alternatives, no ' +
         'leading or trailing punctuation beyond what the phrase itself needs.',
       messages: [{ role: 'user', content: text }],
