@@ -211,6 +211,15 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     setSelectedDayId(DAY_INDEX_TO_ID[new Date().getDay()] ?? DAY_IDS[0]);
   };
 
+  // selectedDayId only otherwise changes via the Day view's own </>
+  // navigation, so without this, switching into Day view from Week/List
+  // always showed whatever day was left selected from last time (or the day
+  // the app happened to mount on) instead of something contextually current.
+  const switchToDayView = () => {
+    setSelectedDayId(todayDayId ?? DAY_IDS[0]);
+    setPlannerView('day');
+  };
+
   // Google Calendar state
   const [gcalConnected, setGcalConnected] = useState(() => isTokenValid());
   const [calendars, setCalendars] = useState<GCalCalendar[]>([]);
@@ -675,12 +684,15 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
 
   const addUnscheduledTask = useCallback(async (text: string) => {
     const translated = await translateText(text);
+    // In Day view the bank is filtered to the focused day (see bankTasksForPanel) —
+    // default new tasks to that day so they don't immediately vanish from the list.
+    const dayId = plannerView === 'day' ? selectedDayId : DAY_IDS[0];
     setTasks(prev => [...prev, {
       id: genId(), content: translated,
       originalText: /[֐-׿]/.test(text) ? text : undefined,
-      status: 'none', color: 'none', dayId: DAY_IDS[0], isDaily: false, sortOrder: prev.length,
+      status: 'none', color: 'none', dayId, isDaily: false, sortOrder: prev.length,
     }]);
-  }, [setTasks]);
+  }, [setTasks, plannerView, selectedDayId]);
 
   // Creates a task directly scheduled on the calendar grid — clicking an
   // empty slot, rather than only being able to add via the Task Bank and
@@ -737,6 +749,23 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     }
     setTasks(prev => prev.filter(t => t.id !== realId));
   }, [tasks, setTasks, removeSyncedEvents]);
+
+  // Duplicates onto the same day/time as a one-off (not recurring, even if the
+  // original is isDaily) — it lands stacked side by side with the original
+  // and can be dragged wherever it actually belongs from there.
+  const duplicateTask = useCallback((id: string) => {
+    const realId = getRealId(id);
+    const task = tasks.find(t => t.id === realId);
+    if (!task) return;
+    const newId = genId();
+    setTasks(prev => [...prev, {
+      ...task, id: newId, isDaily: false, dailyStatuses: undefined, sortOrder: prev.length,
+    }]);
+    if (task.startTime) {
+      const dayIndex = DAYS.findIndex(d => d.id === task.dayId);
+      syncTaskToCalendar(newId, task.content, dayIndex, task.startTime, task.durationMinutes ?? 30, task.calendarId);
+    }
+  }, [tasks, setTasks, syncTaskToCalendar]);
 
   const cycleStatus = useCallback((id: string) => {
     const parts = id.split('_');
@@ -1097,7 +1126,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 <span>Week</span>
               </button>
               <button
-                onClick={() => setPlannerView('day')}
+                onClick={switchToDayView}
                 title="Day view"
                 className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-base ${
                   plannerView === 'day' ? 'bg-card text-foreground shadow-sm-custom' : 'text-muted-foreground hover:text-foreground'
@@ -1210,6 +1239,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 busyEventsByDay={visibleBusyEventsByDay}
                 syncedTaskIds={syncedTaskIds}
                 onDelete={deleteTask}
+                onDuplicate={duplicateTask}
                 onEdit={editTask}
                 onSetColor={setTaskColor}
                 onResize={resizeTask}

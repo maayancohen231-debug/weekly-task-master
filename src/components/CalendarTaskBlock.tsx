@@ -1,5 +1,5 @@
 import { useDraggable } from '@dnd-kit/core';
-import { Trash2, Repeat, Palette, Clock, CalendarClock } from 'lucide-react';
+import { Trash2, Repeat, Palette, Clock, CalendarClock, Copy } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { Task, TaskColor } from '@/lib/task-types';
 import { TASK_COLORS } from '@/lib/task-types';
@@ -17,6 +17,7 @@ interface CalendarTaskBlockProps {
   left: string;
   width: string;
   onDelete: (id: string) => void;
+  onDuplicate?: (id: string) => void;
   onEdit?: (id: string, updates: { content?: string; startTime?: string }) => void;
   onSetColor: (id: string, color: TaskColor) => void;
   onResize?: (id: string, durationMinutes: number) => void;
@@ -30,7 +31,7 @@ interface CalendarTaskBlockProps {
 }
 
 export function CalendarTaskBlock({
-  task, top, height, left, width, onDelete, onEdit, onSetColor, onResize, calendars, onSetCalendar,
+  task, top, height, left, width, onDelete, onDuplicate, onEdit, onSetColor, onResize, calendars, onSetCalendar,
   learnedCalendarKeywords, isSynced = false, isOverlay = false, zIndex = 5, pxPerMinute = BASE_PX_PER_MINUTE,
 }: CalendarTaskBlockProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -137,7 +138,11 @@ export function CalendarTaskBlock({
         <div className="flex items-center gap-1 min-w-0">
           {task.isDaily && <Repeat size={9} className="shrink-0 text-foreground/50" />}
           {isSynced && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[hsl(var(--task-blue))]" title="Synced to Google Calendar" />}
-          <p className={`flex-1 min-w-0 text-[11px] font-medium leading-tight truncate ${task.status === 'green' ? 'line-through text-foreground/50' : 'text-foreground/90'}`}>
+          {/* Status (done/in-progress/delayed) is a to-do concept — shown and
+              editable in the Task Bank/List view only. A calendar block should
+              read like a calendar event, so no strikethrough here regardless
+              of status. */}
+          <p className="flex-1 min-w-0 text-[11px] font-medium leading-tight truncate text-foreground/90">
             {task.content}
           </p>
         </div>
@@ -210,6 +215,15 @@ export function CalendarTaskBlock({
               </div>
             )}
           </div>
+        )}
+        {onDuplicate && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDuplicate(task.id); }}
+            className="p-0.5 text-muted-foreground/40 hover:text-foreground/70 rounded transition-base"
+            title="Duplicate"
+          >
+            <Copy size={11} />
+          </button>
         )}
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(task.id); }}
