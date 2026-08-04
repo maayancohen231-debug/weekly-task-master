@@ -142,7 +142,7 @@ export function CalendarTaskBlock({
               editable in the Task Bank/List view only. A calendar block should
               read like a calendar event, so no strikethrough here regardless
               of status. */}
-          <p className="flex-1 min-w-0 text-[11px] font-medium leading-tight truncate text-foreground/90">
+          <p className="flex-1 min-w-0 text-[11px] font-medium leading-tight break-words text-foreground/90">
             {task.content}
           </p>
         </div>

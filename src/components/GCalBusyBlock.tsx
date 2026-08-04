@@ -98,7 +98,7 @@ export function GCalBusyBlock({
     >
       <div className="flex items-center gap-1 min-w-0">
         <Lock size={9} className="shrink-0 opacity-50 text-foreground" />
-        <span className="text-[11px] leading-tight truncate flex-1 text-foreground/90">{event.title}</span>
+        <span className="text-[11px] leading-tight break-words flex-1 text-foreground/90">{event.title}</span>
       </div>
       {!compact && (
         <span className="text-[10px] text-muted-foreground">{formatEventTime(event.start)} – {formatEventTime(event.end)}</span>

@@ -59,21 +59,43 @@ export interface OverlapInterval {
 export interface OverlapLayout {
   col: number;
   totalCols: number;
+  /** This is the one long "background" event of its cluster. */
+  isPrimary: boolean;
+  /** This item's cluster has a primary (set on every item in that cluster, including the primary itself). */
+  hasPrimary: boolean;
 }
 
 const SIDE_BY_SIDE_GAP_PCT = 3;
+const PRIMARY_WIDTH_PCT = 78;
+const SECONDARY_STRIP_LEFT_PCT = 62;
 
 /**
- * Turns a column index / column count from layoutOverlaps into an on-screen
- * position — concurrent events split the column width N ways and sit fully
- * side by side (Google Calendar style), with a thin gap between them so
- * neither one's text is ever hidden behind another. Z-order follows column
- * index so later-starting events sit slightly on top at the seam; components
- * are expected to bump z-index further on hover/interaction so a block can
- * still be brought fully to the front (full column width) to read the whole
- * title when the side-by-side slice truncates it.
+ * Turns an overlap-cluster position from layoutOverlaps into an on-screen
+ * position.
+ *
+ * Clusters with one clearly-longer "background" event (e.g. a 2-hour block
+ * with a couple of short 15-30min ones happening at some point during it)
+ * give that event most of the column width; the short ones share a narrow
+ * strip layered on top of it instead of all splitting the column equally —
+ * cramming a 2-hour event into a 1/6 slice just because six unrelated short
+ * events also occur somewhere within its span wastes the one that actually
+ * needs the room. Clusters of comparably-sized genuinely-concurrent events
+ * (two overlapping meetings, say) still split evenly, Google Calendar style.
  */
-export function cascadePosition(col: number, totalCols: number): { leftPct: number; widthPct: number; z: number } {
+export function cascadePosition(layout: Pick<OverlapLayout, 'col' | 'totalCols' | 'isPrimary' | 'hasPrimary'>): { leftPct: number; widthPct: number; z: number } {
+  const { col, totalCols, isPrimary, hasPrimary } = layout;
+
+  if (isPrimary) return { leftPct: 0, widthPct: PRIMARY_WIDTH_PCT, z: 5 };
+
+  if (hasPrimary) {
+    const stripWidth = 100 - SECONDARY_STRIP_LEFT_PCT;
+    if (totalCols <= 1) return { leftPct: SECONDARY_STRIP_LEFT_PCT, widthPct: stripWidth, z: 10 };
+    const slotPct = stripWidth / totalCols;
+    const leftPct = SECONDARY_STRIP_LEFT_PCT + col * slotPct;
+    const widthPct = Math.max(slotPct - SIDE_BY_SIDE_GAP_PCT, slotPct * 0.7);
+    return { leftPct, widthPct, z: 10 + col };
+  }
+
   if (totalCols <= 1) return { leftPct: 0, widthPct: 100, z: 5 };
   const slotPct = 100 / totalCols;
   const leftPct = col * slotPct;
@@ -114,11 +136,13 @@ export function layoutOverlaps(items: OverlapInterval[]): Map<string, OverlapLay
   let clusterEnd = sorted[0].endMin;
   let clusterItems: OverlapInterval[] = [sorted[0]];
 
-  const flushCluster = () => {
-    // Greedy column assignment within the cluster.
+  // Greedy column assignment (interval-graph coloring) over whatever set of
+  // items it's given — used both for a whole cluster and, when there's a
+  // primary, for just its secondaries among themselves.
+  const assignColumns = (items: OverlapInterval[]): { cols: Map<string, number>; totalCols: number } => {
     const columnEnds: number[] = [];
     const cols = new Map<string, number>();
-    for (const item of clusterItems) {
+    for (const item of items) {
       let col = columnEnds.findIndex(end => end <= item.startMin);
       if (col === -1) {
         col = columnEnds.length;
@@ -128,9 +152,38 @@ export function layoutOverlaps(items: OverlapInterval[]): Map<string, OverlapLay
       }
       cols.set(item.id, col);
     }
-    const totalCols = columnEnds.length;
+    return { cols, totalCols: columnEnds.length };
+  };
+
+  const flushCluster = () => {
+    if (clusterItems.length === 1) {
+      const item = clusterItems[0];
+      result.set(item.id, { col: 0, totalCols: 1, isPrimary: false, hasPrimary: false });
+      return;
+    }
+
+    const durationOf = (it: OverlapInterval) => it.endMin - it.startMin;
+    const maxDuration = Math.max(...clusterItems.map(durationOf));
+    const primaryCandidates = clusterItems.filter(it => durationOf(it) === maxDuration);
+    const secondDuration = Math.max(0, ...clusterItems.filter(it => durationOf(it) !== maxDuration).map(durationOf));
+    // Only promote a single, unambiguous, meaningfully-longer event — ties or
+    // a cluster of comparably-sized events falls through to a plain equal split.
+    const usePrimary = primaryCandidates.length === 1 && maxDuration >= 60 && maxDuration >= secondDuration * 1.5;
+
+    if (usePrimary) {
+      const primary = primaryCandidates[0];
+      result.set(primary.id, { col: 0, totalCols: 1, isPrimary: true, hasPrimary: true });
+      const secondaries = clusterItems.filter(it => it.id !== primary.id);
+      const { cols, totalCols } = assignColumns(secondaries);
+      for (const item of secondaries) {
+        result.set(item.id, { col: cols.get(item.id)!, totalCols, isPrimary: false, hasPrimary: true });
+      }
+      return;
+    }
+
+    const { cols, totalCols } = assignColumns(clusterItems);
     for (const item of clusterItems) {
-      result.set(item.id, { col: cols.get(item.id)!, totalCols });
+      result.set(item.id, { col: cols.get(item.id)!, totalCols, isPrimary: false, hasPrimary: false });
     }
   };
 

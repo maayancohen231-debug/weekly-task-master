@@ -227,7 +227,9 @@ export function WeekCalendarGrid({
 
                   {busy.map(ev => {
                     const l = layout.get(`busy_${ev.id}`);
-                    const { leftPct, widthPct, z } = cascadePosition(l?.col ?? 0, l?.totalCols ?? 1);
+                    const { leftPct, widthPct, z } = cascadePosition({
+                      col: l?.col ?? 0, totalCols: l?.totalCols ?? 1, isPrimary: l?.isPrimary ?? false, hasPrimary: l?.hasPrimary ?? false,
+                    });
                     const r = busyRanges.get(ev.id)!;
                     const { top, height } = clampToGridPx(r.startMin, r.endMin, pxPerMinute);
                     return (
@@ -248,7 +250,9 @@ export function WeekCalendarGrid({
 
                   {tasks.map(task => {
                     const l = layout.get(task.id);
-                    const { leftPct, widthPct, z } = cascadePosition(l?.col ?? 0, l?.totalCols ?? 1);
+                    const { leftPct, widthPct, z } = cascadePosition({
+                      col: l?.col ?? 0, totalCols: l?.totalCols ?? 1, isPrimary: l?.isPrimary ?? false, hasPrimary: l?.hasPrimary ?? false,
+                    });
                     const duration = task.durationMinutes ?? 30;
                     const startMin = minutesFromGridStart(task.startTime!);
                     const { top, height } = clampToGridPx(startMin, startMin + duration, pxPerMinute);
