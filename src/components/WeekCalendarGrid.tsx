@@ -42,13 +42,16 @@ interface WeekCalendarGridProps {
 
 function SlotCell({ dayId, time, height, onClick }: { dayId: string; time: string; height: number; onClick: () => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: slotId(dayId, time) });
-  const isHourStart = time.endsWith(':00');
+  // This cell's border-b renders at its BOTTOM edge, i.e. at the start of the
+  // *next* slot — so the bold hour line belongs on the half-hour slot (whose
+  // bottom edge is the next full hour), not on the hour slot itself.
+  const isBottomEdgeHour = time.endsWith(':30');
   return (
     <div
       ref={setNodeRef}
       onClick={onClick}
       style={{ height }}
-      className={`group/slot flex items-center justify-center border-b ${isHourStart ? 'border-border/50' : 'border-border/20'} transition-base cursor-pointer hover:bg-primary/5 ${isOver ? 'bg-primary/10' : ''}`}
+      className={`group/slot flex items-center justify-center border-b ${isBottomEdgeHour ? 'border-border/50' : 'border-border/20'} transition-base cursor-pointer hover:bg-primary/5 ${isOver ? 'bg-primary/10' : ''}`}
       title="Click to add an event"
     >
       <Plus size={11} className="text-primary/0 [@media(hover:hover)]:group-hover/slot:text-primary/40 transition-base" />
