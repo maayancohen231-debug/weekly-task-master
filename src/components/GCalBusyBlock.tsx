@@ -51,7 +51,9 @@ export function GCalBusyBlock({
       width: front ? '100%' : width,
       opacity: isDragging ? 0.35 : 1,
       zIndex: isDragging || resizeDeltaPx !== null ? 100 : isFront ? 50 : zIndex,
-      backgroundColor: hexToRgba(color, 0.85),
+      // Near-opaque so a block with a higher z-index (an overlap secondary)
+      // fully occludes whatever renders underneath instead of bleeding through.
+      backgroundColor: hexToRgba(color, 0.97),
       borderLeft: `3px solid ${color ?? 'rgba(120,120,120,0.6)'}`,
     };
 

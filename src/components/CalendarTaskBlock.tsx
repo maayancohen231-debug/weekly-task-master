@@ -78,7 +78,10 @@ export function CalendarTaskBlock({
       width: front ? '100%' : width,
       opacity: isDragging ? 0.35 : 1,
       zIndex: isDragging || resizeDeltaPx !== null ? 100 : isFront ? 50 : zIndex,
-      ...(eventColor ? { backgroundColor: hexToRgba(eventColor, 0.85), borderLeft: `3px solid ${eventColor}` } : {}),
+      // Near-opaque, not the old 0.85: a translucent background lets whatever
+      // renders underneath (another block's text, in an overlap cluster) show
+      // through instead of being cleanly hidden by a higher z-index.
+      ...(eventColor ? { backgroundColor: hexToRgba(eventColor, 0.97), borderLeft: `3px solid ${eventColor}` } : {}),
     };
 
   const saveEdit = () => {
