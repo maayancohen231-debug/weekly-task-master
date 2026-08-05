@@ -245,6 +245,7 @@ export function WeekCalendarGrid({
                         width={`${widthPct}%`}
                         zIndex={z}
                         pxPerMinute={pxPerMinute}
+                        hasOverlappingSecondary={!!(l?.isPrimary && l?.hasPrimary)}
                         onDelete={onDeleteBusyEvent}
                         onResize={onResizeBusyEvent}
                       />
@@ -269,6 +270,7 @@ export function WeekCalendarGrid({
                         width={`${widthPct}%`}
                         zIndex={10 + z}
                         pxPerMinute={pxPerMinute}
+                        hasOverlappingSecondary={!!(l?.isPrimary && l?.hasPrimary)}
                         onDelete={onDelete}
                         onDuplicate={onDuplicate}
                         onEdit={onEdit}

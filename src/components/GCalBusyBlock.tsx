@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Lock, Trash2 } from 'lucide-react';
 import type { GCalBusyEvent } from '@/services/googleCalendar';
 import { hexToRgba } from '@/lib/task-styles';
-import { PX_PER_MINUTE as BASE_PX_PER_MINUTE } from '@/lib/calendar-grid';
+import { PX_PER_MINUTE as BASE_PX_PER_MINUTE, PRIMARY_TEXT_SAFE_PCT } from '@/lib/calendar-grid';
 
 const MIN_DURATION_MINUTES = 15;
 const RESIZE_SNAP_MINUTES = 15;
@@ -19,6 +19,7 @@ interface GCalBusyBlockProps {
   onResize?: (event: GCalBusyEvent, durationMinutes: number) => void;
   isOverlay?: boolean;
   pxPerMinute?: number;
+  hasOverlappingSecondary?: boolean;
 }
 
 function formatEventTime(iso: string): string {
@@ -28,6 +29,7 @@ function formatEventTime(iso: string): string {
 
 export function GCalBusyBlock({
   event, top, height, left, width, zIndex = 5, onDelete, onResize, isOverlay = false, pxPerMinute = BASE_PX_PER_MINUTE,
+  hasOverlappingSecondary = false,
 }: GCalBusyBlockProps) {
   const [resizeDeltaPx, setResizeDeltaPx] = useState<number | null>(null);
   const [isFront, setIsFront] = useState(false);
@@ -98,7 +100,13 @@ export function GCalBusyBlock({
         isOverlay ? 'shadow-overlay scale-[1.02]' : 'cursor-grab active:cursor-grabbing hover:shadow-hover'
       }`}
     >
-      <div className="flex items-center gap-1 min-w-0">
+      <div
+        className="flex items-center gap-1 min-w-0"
+        // See CalendarTaskBlock: a secondary sitting on top of this block starts
+        // partway across the row, so the title needs a matching cutoff or a
+        // chunk of it gets visually chopped out by the chip instead of wrapping.
+        style={hasOverlappingSecondary && !front ? { maxWidth: `${PRIMARY_TEXT_SAFE_PCT}%` } : undefined}
+      >
         <Lock size={9} className="shrink-0 opacity-50 text-foreground" />
         <span className="text-[11px] leading-tight break-words flex-1 text-foreground/90">{event.title}</span>
       </div>

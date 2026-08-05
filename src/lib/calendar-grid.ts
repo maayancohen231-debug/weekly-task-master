@@ -69,6 +69,15 @@ const SIDE_BY_SIDE_GAP_PCT = 3;
 const PRIMARY_WIDTH_PCT = 78;
 const SECONDARY_STRIP_LEFT_PCT = 62;
 
+// A primary event's own text is free to run the full PRIMARY_WIDTH_PCT of its
+// box — but a secondary sitting on top of it starts at SECONDARY_STRIP_LEFT_PCT
+// of the *row*, which lands mid-box, not at its edge. Without a matching text
+// cutoff, a long title just runs straight under the secondary chip and gets a
+// chunk of itself visually chopped out of the middle. Expressed as a percentage
+// of the primary's own width, so a title never reaches the zone a secondary
+// will render in.
+export const PRIMARY_TEXT_SAFE_PCT = Math.round((SECONDARY_STRIP_LEFT_PCT / PRIMARY_WIDTH_PCT) * 100);
+
 /**
  * Turns an overlap-cluster position from layoutOverlaps into an on-screen
  * position.

@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import type { Task, TaskColor } from '@/lib/task-types';
 import { TASK_COLORS } from '@/lib/task-types';
 import { colorDotClasses, colorBorderOverrides, colorBgTint, hexToRgba } from '@/lib/task-styles';
-import { PX_PER_MINUTE as BASE_PX_PER_MINUTE, timeToMinutes, minutesToTime } from '@/lib/calendar-grid';
+import { PX_PER_MINUTE as BASE_PX_PER_MINUTE, timeToMinutes, minutesToTime, PRIMARY_TEXT_SAFE_PCT } from '@/lib/calendar-grid';
 import { matchCalendarName, type GCalCalendar } from '@/services/googleCalendar';
 
 const MIN_DURATION_MINUTES = 15;
@@ -28,11 +28,13 @@ interface CalendarTaskBlockProps {
   isOverlay?: boolean;
   zIndex?: number;
   pxPerMinute?: number;
+  hasOverlappingSecondary?: boolean;
 }
 
 export function CalendarTaskBlock({
   task, top, height, left, width, onDelete, onDuplicate, onEdit, onSetColor, onResize, calendars, onSetCalendar,
   learnedCalendarKeywords, isSynced = false, isOverlay = false, zIndex = 5, pxPerMinute = BASE_PX_PER_MINUTE,
+  hasOverlappingSecondary = false,
 }: CalendarTaskBlockProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
@@ -141,7 +143,14 @@ export function CalendarTaskBlock({
           without it, a wrapped multi-line title on a short (30min) block spills
           past its own box and paints over whatever renders after it in the DOM. */}
       <div className="overflow-hidden h-full">
-        <div className="flex items-center gap-1 min-w-0">
+        <div
+          className="flex items-center gap-1 min-w-0"
+          // A secondary event sitting on top of this one starts partway across
+          // the row, not at this block's own right edge — without a matching
+          // cutoff here, a long title runs straight under it and a chunk gets
+          // visually chopped out of the middle instead of wrapping around it.
+          style={hasOverlappingSecondary && !front ? { maxWidth: `${PRIMARY_TEXT_SAFE_PCT}%` } : undefined}
+        >
           {task.isDaily && <Repeat size={9} className="shrink-0 text-foreground/50" />}
           {isSynced && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[hsl(var(--task-blue))]" title="Synced to Google Calendar" />}
           {/* Status (done/in-progress/delayed) is a to-do concept — shown and
