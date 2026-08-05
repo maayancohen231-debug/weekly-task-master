@@ -134,7 +134,10 @@ export function CalendarTaskBlock({
         eventColor ? '' : taskColor !== 'none' ? `${colorBgTint[taskColor]} ${colorBorderOverrides[taskColor]}` : 'bg-card border-l-[3px] border-l-border/50'
       } ${isOverlay ? 'shadow-overlay scale-[1.02]' : 'shadow-sm-custom hover:shadow-hover'}`}
     >
-      <div className="overflow-hidden">
+      {/* h-full + overflow-hidden clips wrapped text to the block's own height —
+          without it, a wrapped multi-line title on a short (30min) block spills
+          past its own box and paints over whatever renders after it in the DOM. */}
+      <div className="overflow-hidden h-full">
         <div className="flex items-center gap-1 min-w-0">
           {task.isDaily && <Repeat size={9} className="shrink-0 text-foreground/50" />}
           {isSynced && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[hsl(var(--task-blue))]" title="Synced to Google Calendar" />}
