@@ -17,6 +17,7 @@ import {
 } from '@/services/googleCalendar';
 import { WeekCalendarGrid } from '@/components/WeekCalendarGrid';
 import { TaskSidebarPanel } from '@/components/TaskSidebarPanel';
+import { QuickAddPanel, type QuickAddResult } from '@/components/QuickAddPanel';
 import { CalendarTaskBlock } from '@/components/CalendarTaskBlock';
 import { GCalBusyBlock } from '@/components/GCalBusyBlock';
 import { StatsCard } from '@/components/StatsCard';
@@ -25,6 +26,7 @@ import { WeeklyGoals, type WeeklyGoal } from '@/components/WeeklyGoals';
 import { DailyGoalsBar } from '@/components/DailyGoalsBar';
 import { DayListView } from '@/components/DayListView';
 import { translateText } from '@/lib/translate';
+import { parseQuickEventText } from '@/lib/parseQuickEvent';
 import { parseSlotId, BANK_ID } from '@/lib/calendar-grid';
 import {
   DAYS, DAY_INDEX_TO_ID, getWeekSunday, getWeekKey, formatDayDate, getMonthYear, getWeekRange, nextStatus,
@@ -711,6 +713,38 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     syncTaskToCalendar(newId, translated, dayIndex, time, 30);
   }, [setTasks, syncTaskToCalendar]);
 
+  // Freeform "quick add" from the sidebar chat box — parses a note like
+  // "11.8" / "13:30" / "ראיון לאליס קוד" into a date+time+title via Claude.
+  // A date inside the currently displayed week gets the full task-tracked
+  // path (same as addScheduledTask, so it shows on the grid immediately and
+  // gets the "which calendar?" ask if ambiguous). A date in a different week
+  // goes straight to Google Calendar instead — the visible week never jumps
+  // out from under the user for a background capture action.
+  const quickAddFromChat = useCallback(async (text: string): Promise<QuickAddResult> => {
+    const { date, time, title } = await parseQuickEventText(text);
+    if (!date) throw new Error("Couldn't find a date in that — try including one, e.g. 11.8.");
+    if (!time) throw new Error("Couldn't find a time in that — include one, e.g. 13:30.");
+    if (!gcalConnected || calendars.length === 0) throw new Error('Connect Google Calendar first.');
+
+    const parsedDate = new Date(`${date}T00:00:00`);
+    const targetWeekStart = getWeekSunday(parsedDate);
+
+    if (getWeekKey(targetWeekStart) === weekKey) {
+      const dayId = DAY_INDEX_TO_ID[parsedDate.getDay()];
+      await addScheduledTask(dayId, time, title);
+      return { ok: true, message: "Added to this week's calendar." };
+    }
+
+    const translated = await translateText(title);
+    const calendar = matchCalendarName(translated, calendars, learnedCalendarKeywords);
+    const event = await createCalendarEvent(calendar.id, translated, `${date}T${time}`, '', 30);
+    return {
+      ok: true,
+      message: `Added to ${calendar.summary} for ${date}.`,
+      link: event.htmlLink,
+    };
+  }, [gcalConnected, calendars, learnedCalendarKeywords, weekKey, addScheduledTask]);
+
   // Deletes the real Google Calendar event behind a read-only "busy" block
   // (an event pulled straight from Google Calendar, not created by this app —
   // these previously had no delete affordance at all).
@@ -1204,6 +1238,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
           <DndContext sensors={sensors} collisionDetection={pointerWithin}
             onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2 scroll-thin">
+              <QuickAddPanel onSubmit={quickAddFromChat} disabled={!gcalConnected} />
               <TaskSidebarPanel
                 tasks={bankTasksForPanel}
                 onAddTask={addUnscheduledTask}
@@ -1269,6 +1304,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
         ) : (
           <>
             <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2 scroll-thin">
+              <QuickAddPanel onSubmit={quickAddFromChat} disabled={!gcalConnected} />
               <LibraryPanel libraryTasks={libraryTasks} onAddLibraryTask={addLibraryTask} onDeleteLibraryTask={deleteLibraryTask} onSetLibraryColor={setLibraryTaskColor} onSetLibraryDuration={setLibraryTaskDuration} />
               <StatsCard tasks={trackedTasks} progress={progress} />
               <WeeklyGoals goals={goals} tasks={trackedTasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
