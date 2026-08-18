@@ -67,16 +67,19 @@ export interface OverlapLayout {
 
 const SIDE_BY_SIDE_GAP_PCT = 3;
 const PRIMARY_WIDTH_PCT = 78;
-const SECONDARY_STRIP_LEFT_PCT = 62;
 
-// A primary event's own text is free to run the full PRIMARY_WIDTH_PCT of its
-// box — but a secondary sitting on top of it starts at SECONDARY_STRIP_LEFT_PCT
-// of the *row*, which lands mid-box, not at its edge. Without a matching text
-// cutoff, a long title just runs straight under the secondary chip and gets a
-// chunk of itself visually chopped out of the middle. Expressed as a percentage
-// of the primary's own width, so a title never reaches the zone a secondary
-// will render in.
-export const PRIMARY_TEXT_SAFE_PCT = Math.round((SECONDARY_STRIP_LEFT_PCT / PRIMARY_WIDTH_PCT) * 100);
+// The small event should visually sit "on" the large one — nearly matching its
+// width, not squeezed into a narrow strip off to the side — so the pair reads
+// as one card layered over another rather than two mismatched slivers.
+const SECONDARY_INSET_PCT = 6;
+const SECONDARY_WIDTH_PCT = PRIMARY_WIDTH_PCT - SECONDARY_INSET_PCT;
+
+// With near-equal widths there's no horizontal "safe" lane on the primary left
+// to protect anymore — a secondary now sits almost exactly on top of it, and
+// any overlap is handled by time (vertical) position and z-index rather than
+// by carving out a lane. Kept close to 100 so a primary's own title stays
+// fully readable even while a secondary overlaps it.
+export const PRIMARY_TEXT_SAFE_PCT = 92;
 
 /**
  * Turns an overlap-cluster position from layoutOverlaps into an on-screen
@@ -97,10 +100,9 @@ export function cascadePosition(layout: Pick<OverlapLayout, 'col' | 'totalCols' 
   if (isPrimary) return { leftPct: 0, widthPct: PRIMARY_WIDTH_PCT, z: 5 };
 
   if (hasPrimary) {
-    const stripWidth = 100 - SECONDARY_STRIP_LEFT_PCT;
-    if (totalCols <= 1) return { leftPct: SECONDARY_STRIP_LEFT_PCT, widthPct: stripWidth, z: 10 };
-    const slotPct = stripWidth / totalCols;
-    const leftPct = SECONDARY_STRIP_LEFT_PCT + col * slotPct;
+    if (totalCols <= 1) return { leftPct: SECONDARY_INSET_PCT, widthPct: SECONDARY_WIDTH_PCT, z: 10 };
+    const slotPct = SECONDARY_WIDTH_PCT / totalCols;
+    const leftPct = SECONDARY_INSET_PCT + col * slotPct;
     const widthPct = Math.max(slotPct - SIDE_BY_SIDE_GAP_PCT, slotPct * 0.7);
     return { leftPct, widthPct, z: 10 + col };
   }
