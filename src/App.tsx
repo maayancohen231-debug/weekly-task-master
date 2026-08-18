@@ -1025,6 +1025,10 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
         startTime: slot?.time,
         durationMinutes: lib.durationMinutes,
         calendarId: lib.calendarId,
+        // Dropped straight onto a grid slot == a plain calendar event, same as
+        // the empty-slot quick-add path — not a to-do, so it shouldn't show up
+        // in the Bank/List/Stats. A drop elsewhere (no slot) stays a real task.
+        isCalendarOnly: !!slot,
       }]);
       if (slot) {
         const dayIndex = DAYS.findIndex(d => d.id === slot.dayId);
