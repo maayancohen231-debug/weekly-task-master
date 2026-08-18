@@ -181,14 +181,24 @@ export default function App() {
 function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   const [weekStart, setWeekStart] = useState(() => getWeekSunday(new Date()));
   const weekKey = useMemo(() => getWeekKey(weekStart), [weekStart]);
-  const currentWeekSunday = useMemo(() => getWeekSunday(new Date()), []);
+
+  // "Today" was previously frozen at mount (useMemo with no real time
+  // dependency), so a tab left open across midnight kept highlighting
+  // yesterday until a manual refresh. Ticking every minute lets it
+  // self-correct instead.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const currentWeekSunday = useMemo(() => getWeekSunday(now), [now]);
   const isCurrentWeek = weekStart.getTime() === currentWeekSunday.getTime();
 
   const todayDayId = useMemo(() => {
     if (!isCurrentWeek) return null;
-    const dayIndex = new Date().getDay();
-    return DAY_INDEX_TO_ID[dayIndex] ?? null;
-  }, [isCurrentWeek]);
+    return DAY_INDEX_TO_ID[now.getDay()] ?? null;
+  }, [isCurrentWeek, now]);
 
   const [storageData, setStorageData] = useState<StorageData>(loadStorage);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -1073,7 +1083,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   const activeLib = activeId ? libraryTasks.find(lt => lt.id === activeId) : null;
 
   return (
-    <div className="h-screen bg-background text-foreground font-sans flex flex-col overflow-hidden">
+    <div className="h-screen app-bg text-foreground font-sans flex flex-col overflow-hidden">
       <div className="h-1 w-full shrink-0" style={{ background: 'hsl(340 60% 80%)' }} />
 
       <header className="bg-card shadow-card px-6 py-3 shrink-0">
