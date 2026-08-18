@@ -268,7 +268,7 @@ export function WeekCalendarGrid({
                         height={height}
                         left={`${leftPct}%`}
                         width={`${widthPct}%`}
-                        zIndex={10 + z}
+                        zIndex={z}
                         pxPerMinute={pxPerMinute}
                         hasOverlappingSecondary={!!(l?.isPrimary && l?.hasPrimary)}
                         onDelete={onDelete}
