@@ -66,13 +66,14 @@ export interface OverlapLayout {
 }
 
 const SIDE_BY_SIDE_GAP_PCT = 3;
-const PRIMARY_WIDTH_PCT = 78;
+// The primary (longest) event fills the whole column — it's the one the
+// column "belongs to" — while a short secondary still cascades on top of it
+// at a narrower width, so the two stay visually distinguishable instead of
+// the small one also stretching edge-to-edge and hiding which is which.
+const PRIMARY_WIDTH_PCT = 100;
 
-// The small event should visually sit "on" the large one — nearly matching its
-// width, not squeezed into a narrow strip off to the side — so the pair reads
-// as one card layered over another rather than two mismatched slivers.
 const SECONDARY_INSET_PCT = 6;
-const SECONDARY_WIDTH_PCT = PRIMARY_WIDTH_PCT - SECONDARY_INSET_PCT;
+const SECONDARY_WIDTH_PCT = 72;
 
 // With near-equal widths there's no horizontal "safe" lane on the primary left
 // to protect anymore — a secondary now sits almost exactly on top of it, and
