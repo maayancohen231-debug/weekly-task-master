@@ -41,6 +41,7 @@ export function CalendarTaskBlock({
   const [showEditForm, setShowEditForm] = useState(false);
   const [editContent, setEditContent] = useState(task.content);
   const [editTime, setEditTime] = useState(task.startTime ?? '');
+  const [editEndTime, setEditEndTime] = useState('');
   const [resizeDeltaPx, setResizeDeltaPx] = useState<number | null>(null);
   const [isFront, setIsFront] = useState(false);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id });
@@ -88,7 +89,18 @@ export function CalendarTaskBlock({
 
   const saveEdit = () => {
     if (!onEdit) return;
-    onEdit(task.id, { content: editContent.trim() || task.content, startTime: editTime || task.startTime });
+    const newStartTime = editTime || task.startTime;
+    onEdit(task.id, { content: editContent.trim() || task.content, startTime: newStartTime });
+    // End time isn't part of onEdit's own payload (it maps to durationMinutes,
+    // which onResize owns) — derive the new duration from start/end here and
+    // apply it the same way a drag-resize would, so the end-time field is a
+    // real alternative to that drag handle, not just a display.
+    if (onResize && newStartTime && editEndTime) {
+      const newDuration = timeToMinutes(editEndTime) - timeToMinutes(newStartTime);
+      if (newDuration >= MIN_DURATION_MINUTES && newDuration !== task.durationMinutes) {
+        onResize(task.id, newDuration);
+      }
+    }
     setShowEditForm(false);
   };
 
@@ -129,6 +141,7 @@ export function CalendarTaskBlock({
       onClick={() => {
         setEditContent(task.content);
         setEditTime(task.startTime ?? '');
+        setEditEndTime(endTime ?? '');
         setShowEditForm(v => !v);
         setIsFront(true);
       }}
@@ -273,13 +286,34 @@ export function CalendarTaskBlock({
             placeholder="Task name..."
             className="w-full px-2 py-1.5 bg-muted border-none rounded-lg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
-          <input
-            type="time"
-            value={editTime}
-            onChange={(e) => setEditTime(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setShowEditForm(false); }}
-            className="w-full px-2 py-1.5 bg-muted border-none rounded-lg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
-          />
+          <div className="flex items-center gap-1">
+            <input
+              type="time"
+              value={editTime}
+              onChange={(e) => {
+                const next = e.target.value;
+                // Sliding the start later than the current end would produce a
+                // negative/zero duration — nudge the end forward with it so the
+                // block's length stays put instead of silently failing to save.
+                if (editEndTime && timeToMinutes(next) >= timeToMinutes(editEndTime)) {
+                  setEditEndTime(minutesToTime(timeToMinutes(next) + (task.durationMinutes ?? 30)));
+                }
+                setEditTime(next);
+              }}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setShowEditForm(false); }}
+              title="Start time"
+              className="w-full min-w-0 px-2 py-1.5 bg-muted border-none rounded-lg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            <span className="text-[10px] text-muted-foreground/50 shrink-0">–</span>
+            <input
+              type="time"
+              value={editEndTime}
+              onChange={(e) => setEditEndTime(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setShowEditForm(false); }}
+              title="End time"
+              className="w-full min-w-0 px-2 py-1.5 bg-muted border-none rounded-lg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
           <div className="flex gap-1.5">
             <button
               onClick={saveEdit}

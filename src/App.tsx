@@ -787,12 +787,31 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   const deleteTask = useCallback((id: string) => {
     const realId = getRealId(id);
     const task = tasks.find(t => t.id === realId);
-    if (task?.startTime) {
+    if (!task) return;
+    if (task.startTime) {
       const keys = task.isDaily ? DAYS.map(d => `${realId}_${d.id}`) : [realId];
       removeSyncedEvents(keys);
     }
-    setTasks(prev => prev.filter(t => t.id !== realId));
-  }, [tasks, setTasks, removeSyncedEvents]);
+    if (task.isDaily) {
+      // A recurring task is stored as one copy per week (same content+dayId,
+      // the identity key the auto-populate effect above matches on). Deleting
+      // only the current week's copy left every other week's copy in place,
+      // so the very next time that effect ran it treated the task as "missing
+      // from this week" and silently re-added it — the task could never
+      // actually be deleted. Removing every week's copy at once fixes that.
+      setStorageData(prev => ({
+        ...prev,
+        tasksByWeek: Object.fromEntries(
+          Object.entries(prev.tasksByWeek).map(([wk, wkTasks]) => [
+            wk,
+            wkTasks.filter(t => !(t.isDaily && t.content === task.content && t.dayId === task.dayId)),
+          ]),
+        ),
+      }));
+    } else {
+      setTasks(prev => prev.filter(t => t.id !== realId));
+    }
+  }, [tasks, setTasks, setStorageData, removeSyncedEvents]);
 
   // Duplicates onto the same day/time as a one-off (not recurring, even if the
   // original is isDaily) — it lands stacked side by side with the original

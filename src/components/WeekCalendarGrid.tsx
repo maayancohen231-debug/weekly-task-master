@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { useDroppable } from '@dnd-kit/core';
+import { useDroppable, useDndMonitor } from '@dnd-kit/core';
 import { Plus, X, ZoomIn, ZoomOut } from 'lucide-react';
 import type { Task, TaskColor } from '@/lib/task-types';
 import type { GCalBusyEvent, GCalCalendar } from '@/services/googleCalendar';
@@ -118,8 +118,22 @@ export function WeekCalendarGrid({
   const [quickAddValue, setQuickAddValue] = useState('');
   const quickAddInputRef = useRef<HTMLInputElement>(null);
 
+  // Dropping a dragged event onto a slot still fires a native `click` on
+  // that same slot right after — dnd-kit's PointerSensor doesn't swallow it,
+  // and a droppable div's onClick has no idea a drag just landed on it. That
+  // stray click was opening an unwanted "Event at HH:MM..." quick-add box
+  // right on top of the event that was just moved there. Suppress clicks for
+  // a brief window after any drag ends, anywhere in this grid.
+  const justDraggedRef = useRef(false);
+  useDndMonitor({
+    onDragEnd: () => {
+      justDraggedRef.current = true;
+      setTimeout(() => { justDraggedRef.current = false; }, 300);
+    },
+  });
+
   const openQuickAdd = (dayId: string, time: string) => {
-    if (!onQuickAdd) return;
+    if (!onQuickAdd || justDraggedRef.current) return;
     setQuickAdd({ dayId, time });
     setQuickAddValue('');
     setTimeout(() => quickAddInputRef.current?.focus(), 0);
