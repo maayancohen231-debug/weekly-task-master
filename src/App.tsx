@@ -93,6 +93,11 @@ interface StorageData {
   /** Keyword -> Google Calendar id, learned from the user's manual calendar
    * picks so future tasks with a similar keyword auto-resolve without asking. */
   learnedCalendarKeywords: Record<string, string>;
+  /** `${content}|${dayId}` keys for recurring tasks the user explicitly
+   * deleted — the auto-populate effect below must never recreate one of
+   * these from a leftover copy it missed, so deletion is permanent until
+   * the user recurring-toggles a matching task back on. */
+  deletedRecurringKeys: string[];
 }
 
 /**
@@ -138,10 +143,11 @@ function loadStorage(): StorageData {
         ...migrateDailyGoals(parsed),
         libraryTasks: parsed.libraryTasks ?? [],
         learnedCalendarKeywords: parsed.learnedCalendarKeywords ?? {},
+        deletedRecurringKeys: parsed.deletedRecurringKeys ?? [],
       };
     }
   } catch { /* ignore */ }
-  return { tasksByWeek: {}, goalsByWeek: {}, dailyGoalNames: [], dailyGoalDoneByWeek: {}, libraryTasks: [], learnedCalendarKeywords: {} };
+  return { tasksByWeek: {}, goalsByWeek: {}, dailyGoalNames: [], dailyGoalDoneByWeek: {}, libraryTasks: [], learnedCalendarKeywords: {}, deletedRecurringKeys: [] };
 }
 
 function genId(): string {
@@ -486,10 +492,12 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       const allDailyTasks = Object.values(prev.tasksByWeek).flat().filter(t => t.isDaily);
       if (allDailyTasks.length === 0) return prev;
 
+      const deletedKeys = new Set(prev.deletedRecurringKeys ?? []);
       const seen = new Set<string>();
       const templates: Task[] = [];
       for (const t of allDailyTasks) {
         const key = `${t.content}|${t.dayId}`;
+        if (deletedKeys.has(key)) continue;
         if (!seen.has(key)) { seen.add(key); templates.push(t); }
       }
 
@@ -799,6 +807,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       // so the very next time that effect ran it treated the task as "missing
       // from this week" and silently re-added it — the task could never
       // actually be deleted. Removing every week's copy at once fixes that.
+      const key = `${task.content}|${task.dayId}`;
       setStorageData(prev => ({
         ...prev,
         tasksByWeek: Object.fromEntries(
@@ -807,6 +816,13 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
             wkTasks.filter(t => !(t.isDaily && t.content === task.content && t.dayId === task.dayId)),
           ]),
         ),
+        // Belt-and-suspenders on top of the cross-week removal above: even if
+        // some copy is missed (edited content, a race with another tab, a
+        // week not yet loaded), the auto-populate effect will refuse to
+        // resurrect this exact key until it's explicitly re-created.
+        deletedRecurringKeys: prev.deletedRecurringKeys.includes(key)
+          ? prev.deletedRecurringKeys
+          : [...prev.deletedRecurringKeys, key],
       }));
     } else {
       setTasks(prev => prev.filter(t => t.id !== realId));
@@ -856,6 +872,16 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     if (!task) return;
     const turningOn = !task.isDaily;
     setTasks(prev => prev.map(t => t.id === realId ? { ...t, isDaily: turningOn } : t));
+    if (turningOn) {
+      // The user explicitly wants this content+day recurring again — lift
+      // any earlier tombstone so the auto-populate effect is allowed to
+      // propagate it to other weeks instead of silently ignoring it forever.
+      const key = `${task.content}|${task.dayId}`;
+      setStorageData(prev => ({
+        ...prev,
+        deletedRecurringKeys: prev.deletedRecurringKeys.filter(k => k !== key),
+      }));
+    }
     if (!task.startTime) return;
 
     const duration = task.durationMinutes ?? 30;
@@ -869,7 +895,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       const dayIndex = DAYS.findIndex(d => d.id === task.dayId);
       syncTaskToCalendar(realId, task.content, dayIndex, task.startTime!, duration, task.calendarId);
     }
-  }, [tasks, setTasks, removeSyncedEvents, syncTaskToCalendar]);
+  }, [tasks, setTasks, setStorageData, removeSyncedEvents, syncTaskToCalendar]);
 
   const setTaskColor = useCallback((id: string, color: TaskColor) => {
     const realId = getRealId(id);
