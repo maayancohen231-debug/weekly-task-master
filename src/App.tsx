@@ -523,6 +523,46 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     });
   }, [weekKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const currentWeekKey = useMemo(() => getWeekKey(currentWeekSunday), [currentWeekSunday]);
+
+  // Roll unfinished tasks from past weeks into the real current week, so an
+  // undone task doesn't just silently vanish once its week is over. Keyed on
+  // currentWeekKey (the real-world week), not weekKey (whatever week is
+  // being browsed) — so looking at an old week to review it doesn't itself
+  // trigger a move. Recurring (isDaily) tasks are left alone; they already
+  // have their own copy-forward effect above and moving them here too would
+  // just fight with it.
+  useEffect(() => {
+    setStorageData(prev => {
+      const pastWeekKeys = Object.keys(prev.tasksByWeek).filter(wk => wk < currentWeekKey);
+      const trimmed: Record<string, Task[]> = {};
+      const rolled: Task[] = [];
+      for (const wk of pastWeekKeys) {
+        const wkTasks = prev.tasksByWeek[wk] ?? [];
+        const staying = wkTasks.filter(t => t.isDaily || t.status === 'green');
+        const moving = wkTasks.filter(t => !t.isDaily && t.status !== 'green');
+        if (moving.length > 0) {
+          trimmed[wk] = staying;
+          rolled.push(...moving);
+        }
+      }
+      if (rolled.length === 0) return prev;
+
+      const currentWeekTasks = prev.tasksByWeek[currentWeekKey] ?? [];
+      return {
+        ...prev,
+        tasksByWeek: {
+          ...prev.tasksByWeek,
+          ...trimmed,
+          [currentWeekKey]: [
+            ...currentWeekTasks,
+            ...rolled.map((t, i) => ({ ...t, sortOrder: currentWeekTasks.length + i })),
+          ],
+        },
+      };
+    });
+  }, [currentWeekKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
