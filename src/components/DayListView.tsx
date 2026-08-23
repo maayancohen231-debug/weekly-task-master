@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor,
   useSensor, useSensors, DragOverlay, DragEndEvent, DragStartEvent, DragOverEvent,
@@ -7,9 +7,10 @@ import {
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { DayColumn } from './DayColumn';
 import { TaskItem } from './TaskItem';
+import { LibraryPanel } from './LibraryPanel';
 import { translateText } from '@/lib/translate';
 import { DAYS, formatDayDate } from '@/lib/task-types';
-import type { Task, TaskColor } from '@/lib/task-types';
+import type { Task, TaskColor, LibraryTask } from '@/lib/task-types';
 
 const DAY_IDS = DAYS.map(d => d.id);
 
@@ -39,6 +40,17 @@ interface DayListViewProps {
   onToggleDaily: (id: string) => void;
   onSetColor: (id: string, color: TaskColor) => void;
   onSplitTask: (id: string) => void;
+  libraryTasks: LibraryTask[];
+  onAddLibraryTask: (task: LibraryTask) => void;
+  onDeleteLibraryTask: (id: string) => void;
+  onSetLibraryColor: (id: string, color: TaskColor) => void;
+  onSetLibraryDuration: (id: string, durationMinutes: number | undefined) => void;
+  /** Rendered above/below the Task Library in the same sidebar column — kept
+   * as slots rather than DayListView knowing about QuickAddPanel/StatsCard/
+   * WeeklyGoals directly, since those need to sit inside the same DndContext
+   * as the library for its drag-to-day-column to work at all. */
+  sidebarBefore?: ReactNode;
+  sidebarAfter?: ReactNode;
 }
 
 /**
@@ -50,6 +62,8 @@ interface DayListViewProps {
 export function DayListView({
   tasks, weekStart, todayDayId, setTasks,
   onDelete, onCycleStatus, onToggleDaily, onSetColor, onSplitTask,
+  libraryTasks, onAddLibraryTask, onDeleteLibraryTask, onSetLibraryColor, onSetLibraryDuration,
+  sidebarBefore, sidebarAfter,
 }: DayListViewProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
 
@@ -128,6 +142,26 @@ export function DayListView({
     setActiveId(null);
     if (!over) return;
     const aid = active.id as string, oid = over.id as string;
+
+    // A Task Library item dropped here (it's never in `tasks`, only in
+    // `libraryTasks`) becomes a new real, one-off task in the target day —
+    // same as dropping a library item onto the calendar grid.
+    const lib = libraryTasks.find(lt => lt.id === aid);
+    if (lib) {
+      const targetDay = (DAY_IDS as string[]).includes(oid) ? oid : tasks.find(t => t.id === getRealId(oid))?.dayId;
+      if (!targetDay) return;
+      setTasks(prev => {
+        const sortOrder = prev.filter(t => t.dayId === targetDay && !t.isDaily).length;
+        return [...prev, {
+          id: genId(), content: lib.content, originalText: lib.originalText,
+          status: 'none', color: lib.color ?? 'none',
+          dayId: targetDay, isDaily: false, sortOrder,
+          durationMinutes: lib.durationMinutes,
+        }];
+      });
+      return;
+    }
+
     if (active.id !== over.id && !(DAY_IDS as string[]).includes(oid)) {
       const realAid = getRealId(aid), realOid = getRealId(oid);
       if (tasks.find(t => t.id === realAid)?.isDaily) return;
@@ -136,7 +170,7 @@ export function DayListView({
         return oi > -1 && ni > -1 ? arrayMove(prev, oi, ni) : prev;
       });
     }
-  }, [tasks, setTasks]);
+  }, [tasks, setTasks, libraryTasks]);
 
   const activeTask = useMemo(() => {
     if (!activeId) return null;
@@ -147,9 +181,23 @@ export function DayListView({
     return tasks.find(t => t.id === activeId) ?? null;
   }, [activeId, tasksByDay, tasks]);
 
+  const activeLib = activeId ? libraryTasks.find(lt => lt.id === activeId) : null;
+
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter}
       onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+      <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2 scroll-thin">
+        {sidebarBefore}
+        <LibraryPanel
+          libraryTasks={libraryTasks}
+          onAddLibraryTask={onAddLibraryTask}
+          onDeleteLibraryTask={onDeleteLibraryTask}
+          onSetLibraryColor={onSetLibraryColor}
+          onSetLibraryDuration={onSetLibraryDuration}
+        />
+        {sidebarAfter}
+      </div>
+
       <div className="flex-1 flex gap-2 overflow-x-auto pb-2 min-h-0 scroll-thin">
         {LIST_VIEW_DAYS.map((day, i) => (
           <DayColumn key={day.id} dayId={day.id} label={day.label}
@@ -164,6 +212,7 @@ export function DayListView({
 
       <DragOverlay dropAnimation={{ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.5' } } }) }}>
         {activeTask ? <TaskItem task={activeTask} isOverlay /> : null}
+        {activeLib ? <div className="px-4 py-2.5 bg-card rounded-xl shadow-overlay border border-primary/20 text-[13px] font-medium text-foreground">{activeLib.content}</div> : null}
       </DragOverlay>
     </DndContext>
   );

@@ -21,7 +21,6 @@ import { QuickAddPanel, type QuickAddResult } from '@/components/QuickAddPanel';
 import { CalendarTaskBlock } from '@/components/CalendarTaskBlock';
 import { GCalBusyBlock } from '@/components/GCalBusyBlock';
 import { StatsCard } from '@/components/StatsCard';
-import { LibraryPanel } from '@/components/LibraryPanel';
 import { WeeklyGoals, type WeeklyGoal } from '@/components/WeeklyGoals';
 import { DailyGoalsBar } from '@/components/DailyGoalsBar';
 import { DayListView } from '@/components/DayListView';
@@ -1401,25 +1400,29 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
             </DragOverlay>
           </DndContext>
         ) : (
-          <>
-            <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2 scroll-thin">
-              <QuickAddPanel onSubmit={quickAddFromChat} disabled={!gcalConnected} />
-              <LibraryPanel libraryTasks={libraryTasks} onAddLibraryTask={addLibraryTask} onDeleteLibraryTask={deleteLibraryTask} onSetLibraryColor={setLibraryTaskColor} onSetLibraryDuration={setLibraryTaskDuration} />
-              <StatsCard tasks={trackedTasks} progress={progress} />
-              <WeeklyGoals goals={goals} tasks={trackedTasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
-            </div>
-            <DayListView
-              tasks={trackedTasks}
-              weekStart={weekStart}
-              todayDayId={todayDayId}
-              setTasks={setTasks}
-              onDelete={deleteTask}
-              onCycleStatus={cycleStatus}
-              onToggleDaily={toggleDaily}
-              onSetColor={setTaskColor}
-              onSplitTask={splitTask}
-            />
-          </>
+          <DayListView
+            tasks={trackedTasks}
+            weekStart={weekStart}
+            todayDayId={todayDayId}
+            setTasks={setTasks}
+            onDelete={deleteTask}
+            onCycleStatus={cycleStatus}
+            onToggleDaily={toggleDaily}
+            onSetColor={setTaskColor}
+            onSplitTask={splitTask}
+            libraryTasks={libraryTasks}
+            onAddLibraryTask={addLibraryTask}
+            onDeleteLibraryTask={deleteLibraryTask}
+            onSetLibraryColor={setLibraryTaskColor}
+            onSetLibraryDuration={setLibraryTaskDuration}
+            sidebarBefore={<QuickAddPanel onSubmit={quickAddFromChat} disabled={!gcalConnected} />}
+            sidebarAfter={
+              <>
+                <StatsCard tasks={trackedTasks} progress={progress} />
+                <WeeklyGoals goals={goals} tasks={trackedTasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
+              </>
+            }
+          />
         )}
       </main>
     </div>
