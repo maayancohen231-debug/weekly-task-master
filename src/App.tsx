@@ -540,17 +540,27 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   }, [weekKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentWeekKey = useMemo(() => getWeekKey(currentWeekSunday), [currentWeekSunday]);
+  // Only the last 2 weeks' worth of undone tasks roll forward — anything
+  // older stays put in its original week instead of resurfacing indefinitely.
+  // Without this cutoff, the very first time this effect ran against months
+  // of accumulated history it swept everything at once into "today" (128
+  // tasks, in practice) — a scale that's more overwhelming than helpful.
+  const rolloverCutoffKey = useMemo(() => {
+    const cutoff = new Date(currentWeekSunday);
+    cutoff.setDate(cutoff.getDate() - 14);
+    return getWeekKey(cutoff);
+  }, [currentWeekSunday]);
 
-  // Roll unfinished tasks from past weeks into the real current week, so an
-  // undone task doesn't just silently vanish once its week is over. Keyed on
-  // currentWeekKey (the real-world week), not weekKey (whatever week is
-  // being browsed) — so looking at an old week to review it doesn't itself
-  // trigger a move. Recurring (isDaily) tasks are left alone; they already
-  // have their own copy-forward effect above and moving them here too would
-  // just fight with it.
+  // Roll unfinished tasks from recent past weeks into the real current week,
+  // so an undone task doesn't just silently vanish once its week is over.
+  // Keyed on currentWeekKey (the real-world week), not weekKey (whatever
+  // week is being browsed) — so looking at an old week to review it doesn't
+  // itself trigger a move. Recurring (isDaily) tasks are left alone; they
+  // already have their own copy-forward effect above and moving them here
+  // too would just fight with it.
   useEffect(() => {
     setStorageData(prev => {
-      const pastWeekKeys = Object.keys(prev.tasksByWeek).filter(wk => wk < currentWeekKey);
+      const pastWeekKeys = Object.keys(prev.tasksByWeek).filter(wk => wk >= rolloverCutoffKey && wk < currentWeekKey);
       const trimmed: Record<string, Task[]> = {};
       const rolled: Task[] = [];
       for (const wk of pastWeekKeys) {
@@ -587,7 +597,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
         },
       };
     });
-  }, [currentWeekKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentWeekKey, rolloverCutoffKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
