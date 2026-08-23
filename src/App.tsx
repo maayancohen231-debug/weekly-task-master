@@ -5,7 +5,7 @@ import {
   defaultDropAnimationSideEffects,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar, AlertTriangle, X, Eraser } from 'lucide-react';
+import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar, AlertTriangle, X, Eraser, Trash2 } from 'lucide-react';
 import { AcademicBoard } from '@/components/AcademicBoard';
 import { forceSeedData } from '@/lib/seed';
 import {
@@ -1216,6 +1216,21 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
               >
                 <Eraser size={14} />
                 <span>Clean up week</span>
+              </button>
+            )}
+            {bankTasks.length > 0 && (
+              <button
+                onClick={() => {
+                  if (confirm(`Delete all ${bankTasks.length} unscheduled tasks in the Task Bank? This can't be undone.`)) {
+                    const bankIds = new Set(bankTasks.map(t => t.id));
+                    setTasks(prev => prev.filter(t => !bankIds.has(t.id)));
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-destructive bg-muted hover:bg-[hsl(var(--status-red-bg))] rounded-xl transition-base"
+                title="Delete every task currently in the Task Bank"
+              >
+                <Trash2 size={14} />
+                <span>Clear Task Bank ({bankTasks.length})</span>
               </button>
             )}
             {isConfigured() ? (
