@@ -539,65 +539,10 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     });
   }, [weekKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const currentWeekKey = useMemo(() => getWeekKey(currentWeekSunday), [currentWeekSunday]);
-  // Only the last 2 weeks' worth of undone tasks roll forward — anything
-  // older stays put in its original week instead of resurfacing indefinitely.
-  // Without this cutoff, the very first time this effect ran against months
-  // of accumulated history it swept everything at once into "today" (128
-  // tasks, in practice) — a scale that's more overwhelming than helpful.
-  const rolloverCutoffKey = useMemo(() => {
-    const cutoff = new Date(currentWeekSunday);
-    cutoff.setDate(cutoff.getDate() - 14);
-    return getWeekKey(cutoff);
-  }, [currentWeekSunday]);
-
-  // Roll unfinished tasks from recent past weeks into the real current week,
-  // so an undone task doesn't just silently vanish once its week is over.
-  // Keyed on currentWeekKey (the real-world week), not weekKey (whatever
-  // week is being browsed) — so looking at an old week to review it doesn't
-  // itself trigger a move. Recurring (isDaily) tasks are left alone; they
-  // already have their own copy-forward effect above and moving them here
-  // too would just fight with it.
-  useEffect(() => {
-    setStorageData(prev => {
-      const pastWeekKeys = Object.keys(prev.tasksByWeek).filter(wk => wk >= rolloverCutoffKey && wk < currentWeekKey);
-      const trimmed: Record<string, Task[]> = {};
-      const rolled: Task[] = [];
-      for (const wk of pastWeekKeys) {
-        const wkTasks = prev.tasksByWeek[wk] ?? [];
-        const staying = wkTasks.filter(t => t.isDaily || t.status === 'green');
-        const moving = wkTasks.filter(t => !t.isDaily && t.status !== 'green');
-        if (moving.length > 0) {
-          trimmed[wk] = staying;
-          rolled.push(...moving);
-        }
-      }
-      if (rolled.length === 0) return prev;
-
-      const currentWeekTasks = prev.tasksByWeek[currentWeekKey] ?? [];
-      // A task with a startTime was calendar-scheduled for a specific slot
-      // that week — carrying that exact time into the new week made it look
-      // like a recurring calendar event nailed to the same hour every week,
-      // which is exactly what piled up and made the grid unreadable. Rolling
-      // forward should mean "don't lose this to-do," not "re-book the same
-      // time slot" — so it lands back in the bank (no startTime) instead,
-      // ready to be rescheduled deliberately if it's still relevant.
-      const unscheduled = rolled.map((t, i) => ({
-        ...t,
-        startTime: undefined,
-        sortOrder: currentWeekTasks.length + i,
-      }));
-
-      return {
-        ...prev,
-        tasksByWeek: {
-          ...prev.tasksByWeek,
-          ...trimmed,
-          [currentWeekKey]: [...currentWeekTasks, ...unscheduled],
-        },
-      };
-    });
-  }, [currentWeekKey, rolloverCutoffKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Rollover-to-current-week was tried and reverted per direct request — it
+  // kept surfacing large numbers of unrelated past-week tasks (128 in one
+  // case) into the current week and made the grid unreadable. A week's
+  // tasks now simply stay in that week, full stop; nothing here moves them.
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
