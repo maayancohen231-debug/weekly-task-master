@@ -292,11 +292,17 @@ export function CalendarTaskBlock({
               value={editTime}
               onChange={(e) => {
                 const next = e.target.value;
+                if (!next) { setEditTime(next); return; }
                 // Sliding the start later than the current end would produce a
                 // negative/zero duration — nudge the end forward with it so the
                 // block's length stays put instead of silently failing to save.
+                // Clamped to 23:59: minutesToTime(1440+) produces "24:xx"/"25:xx",
+                // which a native <input type="time"> silently rejects as its
+                // controlled value — the field then stops responding to any
+                // further typing at all (looks exactly like "it just froze").
                 if (editEndTime && timeToMinutes(next) >= timeToMinutes(editEndTime)) {
-                  setEditEndTime(minutesToTime(timeToMinutes(next) + (task.durationMinutes ?? 30)));
+                  const pushedEnd = Math.min(23 * 60 + 59, timeToMinutes(next) + (task.durationMinutes ?? 30));
+                  setEditEndTime(minutesToTime(pushedEnd));
                 }
                 setEditTime(next);
               }}
