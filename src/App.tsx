@@ -548,15 +548,25 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       if (rolled.length === 0) return prev;
 
       const currentWeekTasks = prev.tasksByWeek[currentWeekKey] ?? [];
+      // A task with a startTime was calendar-scheduled for a specific slot
+      // that week — carrying that exact time into the new week made it look
+      // like a recurring calendar event nailed to the same hour every week,
+      // which is exactly what piled up and made the grid unreadable. Rolling
+      // forward should mean "don't lose this to-do," not "re-book the same
+      // time slot" — so it lands back in the bank (no startTime) instead,
+      // ready to be rescheduled deliberately if it's still relevant.
+      const unscheduled = rolled.map((t, i) => ({
+        ...t,
+        startTime: undefined,
+        sortOrder: currentWeekTasks.length + i,
+      }));
+
       return {
         ...prev,
         tasksByWeek: {
           ...prev.tasksByWeek,
           ...trimmed,
-          [currentWeekKey]: [
-            ...currentWeekTasks,
-            ...rolled.map((t, i) => ({ ...t, sortOrder: currentWeekTasks.length + i })),
-          ],
+          [currentWeekKey]: [...currentWeekTasks, ...unscheduled],
         },
       };
     });
