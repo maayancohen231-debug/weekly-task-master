@@ -5,7 +5,7 @@ import {
   defaultDropAnimationSideEffects,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar, AlertTriangle, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar, AlertTriangle, X, Eraser } from 'lucide-react';
 import { AcademicBoard } from '@/components/AcademicBoard';
 import { forceSeedData } from '@/lib/seed';
 import {
@@ -208,6 +208,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   const [storageData, setStorageData] = useState<StorageData>(loadStorage);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [plannerView, setPlannerView] = useState<'calendar' | 'day' | 'list'>('calendar');
+  const [cleanupSelection, setCleanupSelection] = useState<Set<string> | null>(null);
   const [selectedDayId, setSelectedDayId] = useState(() => todayDayId ?? DAY_IDS[0]);
   const selectedDayIndex = (DAY_IDS as string[]).indexOf(selectedDayId);
 
@@ -452,6 +453,22 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       tasksByWeek: { ...prev.tasksByWeek, [weekKey]: updater(prev.tasksByWeek[weekKey] ?? []) },
     }));
   }, [weekKey]);
+
+  // One-time manual cleanup for tasks that got stuck on a stale time slot by
+  // the rollover bug (fixed going forward, but couldn't be auto-corrected
+  // retroactively without risking unscheduling something genuinely meant for
+  // this week) — every non-daily scheduled task in the *currently viewed*
+  // week, reviewed and confirmed by her before anything is touched.
+  const scheduledInViewedWeek = useMemo(
+    () => tasks.filter(t => !t.isDaily && t.startTime),
+    [tasks],
+  );
+  const openCleanup = () => setCleanupSelection(new Set(scheduledInViewedWeek.map(t => t.id)));
+  const applyCleanup = () => {
+    if (!cleanupSelection) return;
+    setTasks(prev => prev.map(t => cleanupSelection.has(t.id) ? { ...t, startTime: undefined } : t));
+    setCleanupSelection(null);
+  };
 
   const setGoals = useCallback((updater: (prev: WeeklyGoal[]) => WeeklyGoal[]) => {
     setStorageData(prev => ({
@@ -1236,6 +1253,16 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
               <DatabaseZap size={14} />
               <span>Load Sample Data</span>
             </button>
+            {scheduledInViewedWeek.length > 0 && (
+              <button
+                onClick={openCleanup}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-base"
+                title="Review and unschedule stale rollover leftovers"
+              >
+                <Eraser size={14} />
+                <span>Clean up week</span>
+              </button>
+            )}
             {isConfigured() ? (
               gcalConnected ? (
                 <button
@@ -1435,6 +1462,57 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
           />
         )}
       </main>
+
+      {cleanupSelection && (
+        <div className="fixed inset-0 z-[100] bg-black/30 flex items-center justify-center p-4">
+          <div className="bg-card rounded-2xl shadow-elevated w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+              <Eraser size={14} className="text-primary" />
+              <h3 className="flex-1 text-sm font-bold text-foreground">Clean up this week</h3>
+              <button onClick={() => setCleanupSelection(null)} className="p-1 rounded-full text-muted-foreground/50 hover:text-foreground transition-base" aria-label="Close">
+                <X size={16} />
+              </button>
+            </div>
+            <p className="px-4 pt-3 text-xs text-muted-foreground">
+              Unchecked items stay as-is. Checked items get unscheduled (sent back to the bank, no time) — nothing is deleted.
+            </p>
+            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1.5">
+              {scheduledInViewedWeek.map(t => {
+                const dayLabel = DAYS.find(d => d.id === t.dayId)?.label ?? t.dayId;
+                const checked = cleanupSelection.has(t.id);
+                return (
+                  <label key={t.id} className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-muted/60 transition-base cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => setCleanupSelection(prev => {
+                        const next = new Set(prev);
+                        checked ? next.delete(t.id) : next.add(t.id);
+                        return next;
+                      })}
+                      className="shrink-0"
+                    />
+                    <span className="flex-1 min-w-0 text-sm text-foreground truncate">{t.content}</span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">{dayLabel} · {t.startTime}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="flex gap-2 p-3 border-t border-border">
+              <button
+                onClick={applyCleanup}
+                disabled={cleanupSelection.size === 0}
+                className="flex-1 py-2 text-sm font-semibold bg-primary text-primary-foreground rounded-xl disabled:opacity-40 transition-base"
+              >
+                Unschedule {cleanupSelection.size} selected
+              </button>
+              <button onClick={() => setCleanupSelection(null)} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground rounded-xl transition-base">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
