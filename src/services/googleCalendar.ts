@@ -472,6 +472,13 @@ const CALENDAR_RULES: Array<{ calKey: string; keywords: string[] }> = [
     keywords: ['gym', 'workout', 'sport', 'exercise', 'fitness', 'health', 'nutrition', 'run', 'swim', 'yoga', 'pilates', 'crossfit', 'be fit'],
   },
   {
+    // "Fauda Base+ Expert" — already exists as a calendar in her Google
+    // account (from course registration emails); this just teaches the
+    // matcher to route Fauda-related tasks there.
+    calKey: 'fauda',
+    keywords: ['fauda', 'פאודה'],
+  },
+  {
     calKey: 'fam',
     keywords: ['family', 'mom', 'dad', 'sister', 'brother', 'grandma', 'grandpa', 'home', 'parent', 'sibling', 'ima', 'aba'],
   },
