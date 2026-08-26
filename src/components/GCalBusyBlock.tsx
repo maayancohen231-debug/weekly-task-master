@@ -113,7 +113,7 @@ export function GCalBusyBlock({
         style={hasOverlappingSecondary && !front ? { maxWidth: `${PRIMARY_TEXT_SAFE_PCT}%` } : undefined}
       >
         <Lock size={9} className="shrink-0 opacity-50 text-foreground" />
-        <span className="text-[11px] leading-tight break-words flex-1 text-foreground/90">{event.title}</span>
+        <span className={`text-[11px] leading-tight flex-1 text-foreground/90 ${compact ? 'truncate' : 'break-words'}`}>{event.title}</span>
       </div>
       {!compact && (
         <span className="text-[10px] text-muted-foreground">{formatEventTime(event.start)} – {formatEventTime(event.end)}</span>
