@@ -66,6 +66,15 @@ export function CalendarTaskBlock({
   // partly truncated by default. Bringing one to front (hover/click) also
   // expands it to the column's full width so it's actually readable.
   const front = isFront && !isDragging && resizeDeltaPx === null;
+  // A primary with a secondary layered on it must never expand over the
+  // full row (or outrank the secondary's z-index) on hover — the secondary
+  // already sits almost entirely inside the primary's own footprint (see
+  // cascadePosition), so doing either would bury it completely with no
+  // exposed sliver left to reach it through. Its own title is already
+  // close to fully visible via PRIMARY_TEXT_SAFE_PCT, so this widening
+  // isn't needed here anyway — it still helps genuinely equal-width
+  // side-by-side splits, which is the only case it's left enabled for.
+  const expandOnFront = front && !hasOverlappingSecondary;
 
   const style: React.CSSProperties = isOverlay
     ? { width: 180, height: Math.max(height, 32) }
@@ -77,10 +86,10 @@ export function CalendarTaskBlock({
       // zoom is ~16px) would otherwise have the icons overflow into whatever's below.
       // Only bump it while "front" (hovered), so the resting grid layout is untouched.
       height: front ? Math.max(displayHeight, 34) : displayHeight,
-      left: front ? '0%' : left,
-      width: front ? '100%' : width,
+      left: expandOnFront ? '0%' : left,
+      width: expandOnFront ? '100%' : width,
       opacity: isDragging ? 0.35 : 1,
-      zIndex: isDragging || resizeDeltaPx !== null ? 100 : isFront ? 50 : zIndex,
+      zIndex: isDragging || resizeDeltaPx !== null ? 100 : expandOnFront ? 50 : zIndex,
       // Near-opaque, not the old 0.85: a translucent background lets whatever
       // renders underneath (another block's text, in an overlap cluster) show
       // through instead of being cleanly hidden by a higher z-index.

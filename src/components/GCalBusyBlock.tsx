@@ -40,6 +40,11 @@ export function GCalBusyBlock({
   // See CalendarTaskBlock: side-by-side overlapping blocks are narrower than
   // the column, so bring-to-front also expands to full width to be readable.
   const front = isFront && !isDragging && resizeDeltaPx === null;
+  // See CalendarTaskBlock: a primary with a secondary on it must never
+  // expand over the full row (or outrank the secondary's z-index) on hover
+  // — the secondary sits almost entirely inside its footprint already, so
+  // either would bury it with no way to reach it.
+  const expandOnFront = front && !hasOverlappingSecondary;
 
   const style: React.CSSProperties = isOverlay
     ? { width: 180, height: Math.max(height, 32) }
@@ -49,10 +54,10 @@ export function GCalBusyBlock({
       // See CalendarTaskBlock: the hover delete button needs room that a very
       // short event's own height doesn't have — only grow it while "front".
       height: front ? Math.max(displayHeight, 34) : displayHeight,
-      left: front ? '0%' : left,
-      width: front ? '100%' : width,
+      left: expandOnFront ? '0%' : left,
+      width: expandOnFront ? '100%' : width,
       opacity: isDragging ? 0.35 : 1,
-      zIndex: isDragging || resizeDeltaPx !== null ? 100 : isFront ? 50 : zIndex,
+      zIndex: isDragging || resizeDeltaPx !== null ? 100 : expandOnFront ? 50 : zIndex,
       // Near-opaque so a block with a higher z-index (an overlap secondary)
       // fully occludes whatever renders underneath instead of bleeding through.
       backgroundColor: hexToRgba(color, 0.97),
