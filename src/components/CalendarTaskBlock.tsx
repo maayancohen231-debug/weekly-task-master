@@ -29,16 +29,26 @@ interface CalendarTaskBlockProps {
   zIndex?: number;
   pxPerMinute?: number;
   hasOverlappingSecondary?: boolean;
+  // Whether THIS block's edit popover (title/time) is the one currently
+  // open — lifted up to the parent grid so at most one can ever be open
+  // across the whole calendar at once. See onOpenEdit.
+  isEditing?: boolean;
+  // Called with this task's id to open its edit popover (implicitly
+  // closing whichever other block's was open), or with null to close
+  // whichever is open. Absent entirely for the drag-overlay preview,
+  // which has no real edit state to manage.
+  onOpenEdit?: (id: string | null) => void;
 }
 
 export function CalendarTaskBlock({
   task, top, height, left, width, onDelete, onDuplicate, onEdit, onSetColor, onResize, calendars, onSetCalendar,
   learnedCalendarKeywords, isSynced = false, isOverlay = false, zIndex = 5, pxPerMinute = BASE_PX_PER_MINUTE,
-  hasOverlappingSecondary = false,
+  hasOverlappingSecondary = false, isEditing = false, onOpenEdit,
 }: CalendarTaskBlockProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showCalendarPicker, setShowCalendarPicker] = useState(false);
-  const [showEditForm, setShowEditForm] = useState(false);
+  const showEditForm = isEditing;
+  const closeEdit = () => onOpenEdit?.(null);
   const [editContent, setEditContent] = useState(task.content);
   const [editTime, setEditTime] = useState(task.startTime ?? '');
   const [editEndTime, setEditEndTime] = useState('');
@@ -110,7 +120,7 @@ export function CalendarTaskBlock({
         onResize(task.id, newDuration);
       }
     }
-    setShowEditForm(false);
+    closeEdit();
   };
 
   const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -148,10 +158,15 @@ export function CalendarTaskBlock({
       {...attributes}
       {...listeners}
       onClick={() => {
-        setEditContent(task.content);
-        setEditTime(task.startTime ?? '');
-        setEditEndTime(endTime ?? '');
-        setShowEditForm(v => !v);
+        if (!onOpenEdit) return;
+        if (isEditing) {
+          onOpenEdit(null);
+        } else {
+          setEditContent(task.content);
+          setEditTime(task.startTime ?? '');
+          setEditEndTime(endTime ?? '');
+          onOpenEdit(task.id);
+        }
         setIsFront(true);
       }}
       onMouseEnter={() => setIsFront(true)}
@@ -289,7 +304,7 @@ export function CalendarTaskBlock({
           <input
             value={editContent}
             onChange={(e) => setEditContent(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setShowEditForm(false); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') closeEdit(); }}
             dir="auto"
             autoFocus
             placeholder="Task name..."
@@ -320,7 +335,7 @@ export function CalendarTaskBlock({
                 }
                 setEditTime(next);
               }}
-              onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setShowEditForm(false); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') closeEdit(); }}
               title="Start time"
               className="w-full min-w-0 px-2 py-1.5 bg-muted border-none rounded-lg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
@@ -329,7 +344,7 @@ export function CalendarTaskBlock({
               type="time"
               value={editEndTime}
               onChange={(e) => setEditEndTime(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setShowEditForm(false); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') closeEdit(); }}
               title="End time"
               className="w-full min-w-0 px-2 py-1.5 bg-muted border-none rounded-lg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
@@ -342,7 +357,7 @@ export function CalendarTaskBlock({
               Save
             </button>
             <button
-              onClick={() => setShowEditForm(false)}
+              onClick={closeEdit}
               className="px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground rounded-md transition-base"
             >
               Cancel

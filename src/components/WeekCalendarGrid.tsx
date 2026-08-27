@@ -118,6 +118,16 @@ export function WeekCalendarGrid({
   const [quickAddValue, setQuickAddValue] = useState('');
   const quickAddInputRef = useRef<HTMLInputElement>(null);
 
+  // Which task's edit form (title/time popover) is open, lifted up here
+  // instead of living as local state inside each CalendarTaskBlock — that
+  // used to let every block open its OWN form independently, so clicking
+  // a second block while a first one's form was still open left BOTH
+  // popovers rendered at once, overlapping ("stays open and also broken").
+  // At most one editing popover can exist across the whole grid now:
+  // opening a new one (via onOpenEdit below) always closes whichever was
+  // open before, by construction.
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+
   // Dropping a dragged event onto a slot still fires a native `click` on
   // that same slot right after — dnd-kit's PointerSensor doesn't swallow it,
   // and a droppable div's onClick has no idea a drag just landed on it. That
@@ -134,6 +144,7 @@ export function WeekCalendarGrid({
 
   const openQuickAdd = (dayId: string, time: string) => {
     if (!onQuickAdd || justDraggedRef.current) return;
+    setEditingTaskId(null);
     setQuickAdd({ dayId, time });
     setQuickAddValue('');
     setTimeout(() => quickAddInputRef.current?.focus(), 0);
@@ -294,6 +305,8 @@ export function WeekCalendarGrid({
                         onSetCalendar={onSetCalendar}
                         learnedCalendarKeywords={learnedCalendarKeywords}
                         isSynced={syncedTaskIds.has(task.id)}
+                        isEditing={editingTaskId === task.id}
+                        onOpenEdit={setEditingTaskId}
                       />
                     );
                   })}
