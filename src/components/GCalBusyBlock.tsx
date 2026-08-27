@@ -100,7 +100,7 @@ export function GCalBusyBlock({
       onClick={() => setIsFront(true)}
       onMouseEnter={() => setIsFront(true)}
       onMouseLeave={() => setIsFront(false)}
-      title={`${event.calendarName}: ${event.title}`}
+      title={`${event.calendarName}: ${event.title || '(No title)'}`}
       className={`group rounded-lg border border-border/40 ring-1 ring-card px-2 py-1 overflow-hidden shadow-sm-custom ${isDragging ? '' : 'transition-base'} ${
         isOverlay ? 'shadow-overlay scale-[1.02]' : 'cursor-grab active:cursor-grabbing hover:shadow-hover'
       }`}
@@ -113,7 +113,7 @@ export function GCalBusyBlock({
         style={hasOverlappingSecondary && !front ? { maxWidth: `${PRIMARY_TEXT_SAFE_PCT}%` } : undefined}
       >
         <Lock size={9} className="shrink-0 opacity-50 text-foreground" />
-        <span className={`text-[11px] leading-tight flex-1 text-foreground/90 ${compact ? 'truncate' : 'break-words'}`}>{event.title}</span>
+        <span className={`text-[11px] leading-tight flex-1 text-foreground/90 ${compact ? 'truncate' : 'break-words'} ${event.title ? '' : 'italic opacity-50'}`}>{event.title || '(No title)'}</span>
       </div>
       {!compact && (
         <span className="text-[10px] text-muted-foreground">{formatEventTime(event.start)} – {formatEventTime(event.end)}</span>

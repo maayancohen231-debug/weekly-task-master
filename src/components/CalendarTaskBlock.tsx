@@ -156,7 +156,7 @@ export function CalendarTaskBlock({
       }}
       onMouseEnter={() => setIsFront(true)}
       onMouseLeave={() => setIsFront(false)}
-      title={task.content}
+      title={task.content || '(No title)'}
       className={`group ${isOverlay ? '' : 'absolute'} rounded-lg border border-border/40 ring-1 ring-card px-2 py-1 cursor-grab active:cursor-grabbing ${isDragging ? '' : 'transition-base'} ${
         eventColor ? '' : taskColor !== 'none' ? `${colorBgTint[taskColor]} ${colorBorderOverrides[taskColor]}` : 'bg-card border-l-[3px] border-l-border/50'
       } ${isOverlay ? 'shadow-overlay scale-[1.02]' : 'shadow-sm-custom hover:shadow-hover'}`}
@@ -179,8 +179,8 @@ export function CalendarTaskBlock({
               editable in the Task Bank/List view only. A calendar block should
               read like a calendar event, so no strikethrough here regardless
               of status. */}
-          <p className={`flex-1 min-w-0 text-[11px] font-medium leading-tight text-foreground/90 ${compact ? 'truncate' : 'break-words'}`}>
-            {task.content}
+          <p className={`flex-1 min-w-0 text-[11px] font-medium leading-tight text-foreground/90 ${compact ? 'truncate' : 'break-words'} ${task.content ? '' : 'italic opacity-50'}`}>
+            {task.content || '(No title)'}
           </p>
         </div>
         {!compact && (
