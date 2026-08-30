@@ -1159,7 +1159,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       <header className="bg-card shadow-card px-6 py-3 shrink-0">
         <div className="flex items-center gap-6">
           <h1 className="text-lg font-bold text-foreground tracking-tight shrink-0">
-            Weekly Task Master
+            היומן שלי
           </h1>
           {plannerView === 'day' ? (
             <div className="flex items-center gap-2 mx-auto">

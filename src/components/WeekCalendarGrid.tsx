@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDroppable, useDndMonitor } from '@dnd-kit/core';
 import { Plus, X, ZoomIn, ZoomOut } from 'lucide-react';
 import type { Task, TaskColor } from '@/lib/task-types';
@@ -107,7 +107,20 @@ export function WeekCalendarGrid({
     return next;
   });
 
-  const nowTop = useMemo(() => nowIndicatorTop(pxPerMinute), [pxPerMinute]);
+  // nowIndicatorTop reads `new Date()` fresh each call, but a plain
+  // useMemo only re-runs when one of its OWN deps changes — with just
+  // `pxPerMinute` as a dep, the red "now" line froze at whatever time the
+  // page happened to load (or last zoom change) and never moved again,
+  // which is exactly why it read as "pointing at the wrong time" and
+  // "not responding": nothing was ever telling it to recompute as real
+  // time passed. A ticking counter, refreshed every 30s, gives it a
+  // reason to re-run periodically without needing a reload.
+  const [nowTick, setNowTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setNowTick(t => t + 1), 30_000);
+    return () => clearInterval(interval);
+  }, []);
+  const nowTop = useMemo(() => nowIndicatorTop(pxPerMinute), [pxPerMinute, nowTick]);
   const slotHeight = SLOT_MINUTES * pxPerMinute;
   const columnHeight = (GRID_END_HOUR - GRID_START_HOUR) * 60 * pxPerMinute;
   // A week's worth of narrow columns needs a wide scroll surface; a single
