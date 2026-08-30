@@ -24,7 +24,8 @@ function countScheduled(tasks: Task[], goalName: string): { scheduled: number; d
       if (t.isDaily) {
         DAYS.forEach(d => {
           scheduled++;
-          if ((t.dailyStatuses?.[d.id] ?? t.status) === 'green') done++;
+          // 'none' default, not t.status — see DayListView's tasksByDay.
+          if ((t.dailyStatuses?.[d.id] ?? 'none') === 'green') done++;
         });
       } else {
         scheduled++;

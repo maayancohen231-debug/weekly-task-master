@@ -73,7 +73,17 @@ export function DayListView({
     tasks.forEach(t => {
       if (t.isDaily) {
         LIST_VIEW_DAYS.forEach(d => {
-          const dayStatus = (t.dailyStatuses?.[d.id] ?? t.status) as Task['status'];
+          // A day with no explicit dailyStatuses entry defaults to 'none' —
+          // NOT `t.status`. Falling back to the task's own shared `status`
+          // field used to mean every day that hadn't been individually
+          // touched yet showed whatever `status` the task happened to
+          // carry (e.g. still 'green' from before it was converted to
+          // daily, or from whatever the most recent click left behind) —
+          // confirmed live: marking one day's box looked like it "checked
+          // everything" because every other still-untouched day was
+          // secretly reading that same shared field instead of having its
+          // own independent default.
+          const dayStatus = (t.dailyStatuses?.[d.id] ?? 'none') as Task['status'];
           map[d.id].push({ ...t, dayId: d.id, id: `${t.id}_${d.id}`, status: dayStatus });
         });
       } else if (map[t.dayId]) {

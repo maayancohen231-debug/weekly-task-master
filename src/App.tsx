@@ -557,7 +557,11 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     let total = 0, done = 0;
     trackedTasks.forEach(t => {
       if (t.isDaily) {
-        DAYS.forEach(d => { total++; if ((t.dailyStatuses?.[d.id] ?? t.status) === 'green') done++; });
+        // 'none' default, not t.status — see DayListView's tasksByDay for
+        // why a daily task's shared status field must never leak into a
+        // specific day's computation (it was inflating this percentage
+        // toward "done" for every day that hadn't actually been touched).
+        DAYS.forEach(d => { total++; if ((t.dailyStatuses?.[d.id] ?? 'none') === 'green') done++; });
       } else {
         total++;
         if (t.status === 'green') done++;
@@ -585,7 +589,8 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       if (!t.startTime) return;
       if (t.isDaily) {
         DAYS.forEach(d => {
-          const dayStatus = (t.dailyStatuses?.[d.id] ?? t.status) as Task['status'];
+          // 'none' default, not t.status — see DayListView's tasksByDay.
+          const dayStatus = (t.dailyStatuses?.[d.id] ?? 'none') as Task['status'];
           map[d.id].push({ ...t, dayId: d.id, id: `${t.id}_${d.id}`, status: dayStatus });
         });
       } else if (map[t.dayId]) {
@@ -874,7 +879,10 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       const realId = parts.slice(0, -1).join('_');
       setTasks(prev => prev.map(t => {
         if (t.id !== realId || !t.isDaily) return t;
-        const cur = t.dailyStatuses?.[dayId] ?? t.status;
+        // 'none' by default, NOT t.status — see DayListView's tasksByDay
+        // for why a daily task's shared `status` field must never leak
+        // into a specific day's computation.
+        const cur = t.dailyStatuses?.[dayId] ?? 'none';
         return { ...t, dailyStatuses: { ...t.dailyStatuses, [dayId]: nextStatus(cur) } };
       }));
       return;
