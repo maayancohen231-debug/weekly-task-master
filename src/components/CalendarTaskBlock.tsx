@@ -1,6 +1,7 @@
 import { useDraggable } from '@dnd-kit/core';
 import { Trash2, Repeat, Palette, Clock, CalendarClock, Copy } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { Task, TaskColor } from '@/lib/task-types';
 import { TASK_COLORS } from '@/lib/task-types';
 import { colorDotClasses, colorBorderOverrides, colorBgTint, hexToRgba } from '@/lib/task-styles';
@@ -9,6 +10,44 @@ import { matchCalendarName, type GCalCalendar } from '@/services/googleCalendar'
 
 const MIN_DURATION_MINUTES = 15;
 const RESIZE_SNAP_MINUTES = 15;
+
+// Both the color and calendar pickers used to render as a plain
+// `position: absolute` child of this block — which is itself absolutely
+// positioned inside a narrow day column, near its right edge for any task
+// scheduled late in the week. Nothing about that nesting gives the popover
+// its own stacking context above SIBLING day columns, so it could paint
+// underneath whatever the next day's events happened to render (a wide
+// event block, another day's content) instead of on top — read live as
+// "I can't see the calendar [list]," with the dropdown's text visibly
+// buried behind neighboring columns. A portal to document.body sidesteps
+// the whole nested-stacking-context problem: the popover renders as a
+// sibling of everything else in the page, `position: fixed` at the
+// trigger button's real screen coordinates, so it's never subject to a
+// day column's local paint order again.
+function usePortalPosition() {
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const measure = () => {
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (rect) setPos({ top: rect.bottom + 4, right: Math.max(8, window.innerWidth - rect.right) });
+  };
+  // Re-measure on scroll (the whole week grid is one scrollable surface,
+  // and it's entirely plausible to scroll while a popover is open) —
+  // capture:true so this catches scroll events bubbling from ANY
+  // descendant scrollable ancestor, not just the window itself.
+  useLayoutEffect(() => {
+    if (!pos) return;
+    const onScrollOrResize = () => measure();
+    window.addEventListener('scroll', onScrollOrResize, true);
+    window.addEventListener('resize', onScrollOrResize);
+    return () => {
+      window.removeEventListener('scroll', onScrollOrResize, true);
+      window.removeEventListener('resize', onScrollOrResize);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!pos]);
+  return { btnRef, pos, open: measure, close: () => setPos(null) };
+}
 
 interface CalendarTaskBlockProps {
   task: Task;
@@ -45,8 +84,8 @@ export function CalendarTaskBlock({
   learnedCalendarKeywords, isSynced = false, isOverlay = false, zIndex = 5, pxPerMinute = BASE_PX_PER_MINUTE,
   hasOverlappingSecondary = false, isEditing = false, onOpenEdit,
 }: CalendarTaskBlockProps) {
-  const [showColorPicker, setShowColorPicker] = useState(false);
-  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+  const colorPicker = usePortalPosition();
+  const calendarPicker = usePortalPosition();
   const showEditForm = isEditing;
   const closeEdit = () => onOpenEdit?.(null);
   const [editContent, setEditContent] = useState(task.content);
@@ -212,21 +251,23 @@ export function CalendarTaskBlock({
       <div className="absolute top-0.5 right-0.5 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 flex items-center gap-0.5 bg-card/95 rounded-md shadow-sm-custom transition-base">
         <div className="relative">
           <button
-            onClick={(e) => { e.stopPropagation(); setShowColorPicker(v => !v); }}
+            ref={colorPicker.btnRef}
+            onClick={(e) => { e.stopPropagation(); colorPicker.pos ? colorPicker.close() : colorPicker.open(); }}
             className="p-0.5 text-muted-foreground/40 hover:text-foreground/70 rounded transition-base"
             title="Color"
           >
             <Palette size={11} />
           </button>
-          {showColorPicker && (
+          {colorPicker.pos && createPortal(
             <div
-              className="absolute right-0 top-full mt-1 z-50 bg-card rounded-xl shadow-overlay border border-border p-2 grid grid-cols-6 gap-1.5"
+              style={{ position: 'fixed', top: colorPicker.pos.top, right: colorPicker.pos.right }}
+              className="z-[200] bg-card rounded-xl shadow-overlay border border-border p-2 grid grid-cols-6 gap-1.5"
               onClick={(e) => e.stopPropagation()}
             >
               {TASK_COLORS.map((c) => (
                 <button
                   key={c.id}
-                  onClick={() => { onSetColor(task.id, c.id); setShowColorPicker(false); }}
+                  onClick={() => { onSetColor(task.id, c.id); colorPicker.close(); }}
                   className={`w-5 h-5 rounded-full border-2 transition-base ${
                     c.id === 'none'
                       ? 'bg-muted border-border'
@@ -235,27 +276,30 @@ export function CalendarTaskBlock({
                   title={c.label}
                 />
               ))}
-            </div>
+            </div>,
+            document.body,
           )}
         </div>
         {calendars && calendars.length > 0 && onSetCalendar && (
           <div className="relative">
             <button
-              onClick={(e) => { e.stopPropagation(); setShowCalendarPicker(v => !v); }}
+              ref={calendarPicker.btnRef}
+              onClick={(e) => { e.stopPropagation(); calendarPicker.pos ? calendarPicker.close() : calendarPicker.open(); }}
               className="p-0.5 text-muted-foreground/40 hover:text-foreground/70 rounded transition-base"
               title="Calendar"
             >
               <CalendarClock size={11} />
             </button>
-            {showCalendarPicker && (
+            {calendarPicker.pos && createPortal(
               <div
-                className="absolute right-0 top-full mt-1 z-50 bg-card rounded-xl shadow-overlay border border-border p-1.5 flex flex-col gap-0.5 min-w-[150px] max-h-56 overflow-y-auto scroll-thin"
+                style={{ position: 'fixed', top: calendarPicker.pos.top, right: calendarPicker.pos.right }}
+                className="z-[200] bg-card rounded-xl shadow-overlay border border-border p-1.5 flex flex-col gap-0.5 min-w-[150px] max-h-56 overflow-y-auto scroll-thin"
                 onClick={(e) => e.stopPropagation()}
               >
                 {calendars.map((cal) => (
                   <button
                     key={cal.id}
-                    onClick={() => { onSetCalendar(task.id, cal.id); setShowCalendarPicker(false); }}
+                    onClick={() => { onSetCalendar(task.id, cal.id); calendarPicker.close(); }}
                     className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] text-left hover:bg-muted transition-base ${
                       task.calendarId === cal.id ? 'bg-muted font-semibold text-foreground' : 'text-foreground/80'
                     }`}
@@ -264,7 +308,8 @@ export function CalendarTaskBlock({
                     <span className="truncate">{cal.summary}</span>
                   </button>
                 ))}
-              </div>
+              </div>,
+              document.body,
             )}
           </div>
         )}
