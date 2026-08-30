@@ -116,7 +116,7 @@ export function GCalBusyBlock({
         <span className={`text-[11px] leading-tight flex-1 text-foreground/90 ${compact ? 'truncate' : 'break-words'} ${event.title ? '' : 'italic opacity-50'}`}>{event.title || '(No title)'}</span>
       </div>
       {!compact && (
-        <span className="text-[10px] text-muted-foreground">{formatEventTime(event.start)} – {formatEventTime(event.end)}</span>
+        <span className="text-[10px] text-foreground/70">{formatEventTime(event.start)} – {formatEventTime(event.end)}</span>
       )}
       {onDelete && !isOverlay && (
         <button

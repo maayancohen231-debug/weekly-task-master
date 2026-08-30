@@ -52,7 +52,7 @@ export function QuickAddPanel({ onSubmit, disabled }: QuickAddPanelProps) {
       ) : (
         <>
           <p className="text-[11px] text-muted-foreground/50">
-            Type a date, time, and title — e.g. "11.8", "13:30", "ראיון לאליס קוד".
+            Type a date, time, and title — e.g. "11.8", "13:30", "Interview with Alice".
           </p>
           <textarea
             ref={textareaRef}
@@ -61,7 +61,7 @@ export function QuickAddPanel({ onSubmit, disabled }: QuickAddPanelProps) {
             onKeyDown={handleKeyDown}
             dir="auto"
             rows={3}
-            placeholder={'11.8\n13:30\nראיון לאליס קוד'}
+            placeholder={'11.8\n13:30\nInterview with Alice'}
             className="w-full px-3 py-2 bg-muted border border-border rounded-xl text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/30 resize-none"
           />
           <button

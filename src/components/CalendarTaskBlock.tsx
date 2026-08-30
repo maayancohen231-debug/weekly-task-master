@@ -199,7 +199,7 @@ export function CalendarTaskBlock({
           </p>
         </div>
         {!compact && (
-          <p className="flex items-center gap-0.5 text-[10px] text-muted-foreground/60 mt-0.5">
+          <p className="flex items-center gap-0.5 text-[10px] text-foreground/70 mt-0.5">
             <Clock size={9} />
             {task.startTime}{endTime ? ` – ${endTime}` : ''}
           </p>

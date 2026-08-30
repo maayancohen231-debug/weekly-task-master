@@ -363,6 +363,23 @@ export async function fetchCalendars(): Promise<GCalCalendar[]> {
  * events on any calendar the user had toggled off for their own viewing,
  * which is exactly the kind of gap this planner exists to prevent.
  */
+// Cosmetic display renames for synced event titles she doesn't control
+// the wording of (e.g. a third-party service's own auto-generated summary
+// text) — purely how this app SHOWS the title, never touches the actual
+// Google Calendar event. Events resync from Google Calendar on every
+// fetch, so editing one occurrence by hand wouldn't stick; add a new entry
+// here instead for any future "call it X instead" request. Matched
+// case-insensitively against the raw summary.
+const TITLE_OVERRIDES: [match: RegExp, replacement: string][] = [
+  [/^Preply lesson\s*-\s*Carly Tamlyn D\.?$/i, 'שיעור אנגלית- Carly'],
+];
+function applyTitleOverride(summary: string): string {
+  for (const [match, replacement] of TITLE_OVERRIDES) {
+    if (match.test(summary)) return replacement;
+  }
+  return summary;
+}
+
 export async function fetchWeekEvents(timeMinISO: string, timeMaxISO: string): Promise<GCalBusyEvent[]> {
   const calendars = await fetchCalendars();
 
@@ -382,7 +399,7 @@ export async function fetchWeekEvents(timeMinISO: string, timeMaxISO: string): P
         .filter(ev => ev.start?.dateTime && ev.end?.dateTime) // skip all-day events
         .map((ev): GCalBusyEvent => ({
           id: ev.id,
-          title: ev.summary ?? '(No title)',
+          title: ev.summary ? applyTitleOverride(ev.summary) : '(No title)',
           start: ev.start!.dateTime!,
           end: ev.end!.dateTime!,
           calendarId: cal.id,
