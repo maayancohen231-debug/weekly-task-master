@@ -937,7 +937,36 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     if (!task) return;
     const newContent = updates.content?.trim() || task.content;
     const newStartTime = updates.startTime ?? task.startTime;
-    setTasks(prev => prev.map(t => t.id === realId ? { ...t, content: newContent, startTime: newStartTime } : t));
+
+    if (task.isDaily) {
+      // A daily task is stored as one copy per week, matched across weeks by
+      // content+dayId (see the auto-populate effect above and deleteTask's
+      // same cross-week sweep). Updating only the current week's copy left
+      // the old content/time behind in every other week's copy — the
+      // auto-populate effect then saw the *old* key as missing from this
+      // week (which now only had the *new* key) and silently re-added a
+      // stale duplicate right back in, which is exactly what looked like
+      // "renaming duplicates the event." Updating every week's copy at once
+      // keeps the auto-populate effect from ever seeing two different keys
+      // for what is conceptually the same recurring task.
+      const oldKey = `${task.content}|${task.dayId}`;
+      setStorageData(prev => ({
+        ...prev,
+        tasksByWeek: Object.fromEntries(
+          Object.entries(prev.tasksByWeek).map(([wk, wkTasks]) => [
+            wk,
+            wkTasks.map(t =>
+              t.isDaily && `${t.content}|${t.dayId}` === oldKey
+                ? { ...t, content: newContent, startTime: newStartTime }
+                : t,
+            ),
+          ]),
+        ),
+      }));
+    } else {
+      setTasks(prev => prev.map(t => t.id === realId ? { ...t, content: newContent, startTime: newStartTime } : t));
+    }
+
     if (!newStartTime) return;
     const duration = task.durationMinutes ?? 30;
     if (task.isDaily) {
@@ -948,7 +977,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       const dayIndex = DAYS.findIndex(d => d.id === task.dayId);
       syncTaskToCalendar(realId, newContent, dayIndex, newStartTime, duration, task.calendarId);
     }
-  }, [tasks, setTasks, syncTaskToCalendar]);
+  }, [tasks, setTasks, setStorageData, syncTaskToCalendar]);
 
   const resizeTask = useCallback((id: string, durationMinutes: number) => {
     const realId = getRealId(id);
