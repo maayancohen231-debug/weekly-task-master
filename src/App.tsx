@@ -5,7 +5,7 @@ import {
   defaultDropAnimationSideEffects,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar, AlertTriangle, X, Eraser } from 'lucide-react';
+import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar, AlertTriangle, X, Eraser, Tags } from 'lucide-react';
 import { AcademicBoard } from '@/components/AcademicBoard';
 import { forceSeedData } from '@/lib/seed';
 import {
@@ -24,6 +24,7 @@ import { StatsCard } from '@/components/StatsCard';
 import { WeeklyGoals, type WeeklyGoal } from '@/components/WeeklyGoals';
 import { DailyGoalsBar } from '@/components/DailyGoalsBar';
 import { DayListView } from '@/components/DayListView';
+import { CalendarKeywordsModal } from '@/components/CalendarKeywordsModal';
 import { translateText } from '@/lib/translate';
 import { parseQuickEventText } from '@/lib/parseQuickEvent';
 import { parseSlotId, BANK_ID } from '@/lib/calendar-grid';
@@ -74,7 +75,16 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, EBSta
 // ── Storage ───────────────────────────────────────────────────────────────────
 
 const STORAGE_KEY = 'weekly-planner-data';
+const VIEW_STORAGE_KEY = 'weekly-planner-view';
 const DAY_IDS = DAYS.map(d => d.id);
+
+type PlannerView = 'calendar' | 'day' | 'list';
+
+/** Remembers the last view she picked (Week/Day/List) so it doesn't silently reset to Week on every reload. */
+function loadPlannerView(): PlannerView {
+  const raw = localStorage.getItem(VIEW_STORAGE_KEY);
+  return raw === 'calendar' || raw === 'day' || raw === 'list' ? raw : 'calendar';
+}
 
 interface DailyGoalName {
   id: string;
@@ -207,8 +217,12 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
 
   const [storageData, setStorageData] = useState<StorageData>(loadStorage);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [plannerView, setPlannerView] = useState<'calendar' | 'day' | 'list'>('calendar');
+  const [plannerView, setPlannerView] = useState<PlannerView>(loadPlannerView);
+  useEffect(() => {
+    localStorage.setItem(VIEW_STORAGE_KEY, plannerView);
+  }, [plannerView]);
   const [cleanupSelection, setCleanupSelection] = useState<Set<string> | null>(null);
+  const [showCalendarKeywords, setShowCalendarKeywords] = useState(false);
   const [selectedDayId, setSelectedDayId] = useState(() => todayDayId ?? DAY_IDS[0]);
   const selectedDayIndex = (DAY_IDS as string[]).indexOf(selectedDayId);
 
@@ -498,6 +512,14 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       ...prev,
       learnedCalendarKeywords: { ...prev.learnedCalendarKeywords, [keyword.toLowerCase()]: calendarId },
     }));
+  }, []);
+
+  const removeCalendarKeyword = useCallback((keyword: string) => {
+    setStorageData(prev => {
+      const next = { ...prev.learnedCalendarKeywords };
+      delete next[keyword];
+      return { ...prev, learnedCalendarKeywords: next };
+    });
   }, []);
 
   // Auto-populate current week with any recurring (isDaily) tasks from other weeks
@@ -1255,6 +1277,16 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 <span>Clean up week</span>
               </button>
             )}
+            {gcalConnected && calendars.length > 0 && (
+              <button
+                onClick={() => setShowCalendarKeywords(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-base"
+                title="Assign specific words to a specific calendar"
+              >
+                <Tags size={14} />
+                <span>Calendar Keywords</span>
+              </button>
+            )}
             {isConfigured() ? (
               gcalConnected ? (
                 <button
@@ -1504,6 +1536,16 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
             </div>
           </div>
         </div>
+      )}
+
+      {showCalendarKeywords && (
+        <CalendarKeywordsModal
+          calendars={calendars}
+          learnedKeywords={learnedCalendarKeywords}
+          onAdd={learnCalendarKeyword}
+          onRemove={removeCalendarKeyword}
+          onClose={() => setShowCalendarKeywords(false)}
+        />
       )}
     </div>
   );
