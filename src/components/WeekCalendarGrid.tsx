@@ -37,6 +37,7 @@ interface WeekCalendarGridProps {
   learnedCalendarKeywords?: Record<string, string>;
   onDeleteBusyEvent?: (event: GCalBusyEvent) => void;
   onResizeBusyEvent?: (event: GCalBusyEvent, durationMinutes: number) => void;
+  onSetBusyEventCalendar?: (event: GCalBusyEvent, calendarId: string) => void;
   onQuickAdd?: (dayId: string, time: string, text: string) => void;
 }
 
@@ -89,7 +90,7 @@ function dayOfMonth(dateStr: string): string {
 
 export function WeekCalendarGrid({
   days, todayDayId, scheduledTasksByDay, busyEventsByDay, syncedTaskIds,
-  onDelete, onDuplicate, onEdit, onSetColor, onResize, calendars, onSetCalendar, learnedCalendarKeywords, onDeleteBusyEvent, onResizeBusyEvent, onQuickAdd,
+  onDelete, onDuplicate, onEdit, onSetColor, onResize, calendars, onSetCalendar, learnedCalendarKeywords, onDeleteBusyEvent, onResizeBusyEvent, onSetBusyEventCalendar, onQuickAdd,
 }: WeekCalendarGridProps) {
   const tzLabel = useMemo(timezoneLabel, []);
 
@@ -286,6 +287,8 @@ export function WeekCalendarGrid({
                         hasOverlappingSecondary={!!(l?.isPrimary && l?.hasPrimary)}
                         onDelete={onDeleteBusyEvent}
                         onResize={onResizeBusyEvent}
+                        calendars={calendars}
+                        onSetCalendar={onSetBusyEventCalendar}
                       />
                     );
                   })}

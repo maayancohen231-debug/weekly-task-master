@@ -1,8 +1,8 @@
 import { useDraggable } from '@dnd-kit/core';
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Lock, Trash2, Pencil } from 'lucide-react';
-import type { GCalBusyEvent } from '@/services/googleCalendar';
+import { Lock, Trash2, Pencil, CalendarClock } from 'lucide-react';
+import type { GCalBusyEvent, GCalCalendar } from '@/services/googleCalendar';
 import { hexToRgba } from '@/lib/task-styles';
 import { PX_PER_MINUTE as BASE_PX_PER_MINUTE, PRIMARY_TEXT_SAFE_PCT } from '@/lib/calendar-grid';
 import { usePortalPosition } from '@/lib/usePortalPosition';
@@ -20,6 +20,8 @@ interface GCalBusyBlockProps {
   zIndex?: number;
   onDelete?: (event: GCalBusyEvent) => void;
   onResize?: (event: GCalBusyEvent, durationMinutes: number) => void;
+  calendars?: GCalCalendar[];
+  onSetCalendar?: (event: GCalBusyEvent, calendarId: string) => void;
   isOverlay?: boolean;
   pxPerMinute?: number;
   hasOverlappingSecondary?: boolean;
@@ -31,12 +33,13 @@ function formatEventTime(iso: string): string {
 }
 
 export function GCalBusyBlock({
-  event, top, height, left, width, zIndex = 5, onDelete, onResize, isOverlay = false, pxPerMinute = BASE_PX_PER_MINUTE,
+  event, top, height, left, width, zIndex = 5, onDelete, onResize, calendars, onSetCalendar, isOverlay = false, pxPerMinute = BASE_PX_PER_MINUTE,
   hasOverlappingSecondary = false,
 }: GCalBusyBlockProps) {
   const [resizeDeltaPx, setResizeDeltaPx] = useState<number | null>(null);
   const [isFront, setIsFront] = useState(false);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `busy_${event.id}` });
+  const calendarPicker = usePortalPosition();
   // A recurring/fixed event she doesn't control the wording of (a
   // third-party service's naming, a shared work calendar's convention)
   // can still be renamed HERE, per explicit request — she wants this in
@@ -141,6 +144,16 @@ export function GCalBusyBlock({
       )}
       {!isOverlay && (
         <div className="absolute top-0.5 right-0.5 flex items-center gap-0.5 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
+          {calendars && calendars.length > 0 && onSetCalendar && (
+            <button
+              ref={calendarPicker.btnRef}
+              onClick={(e) => { e.stopPropagation(); calendarPicker.pos ? calendarPicker.close() : calendarPicker.open(); }}
+              title="Move to a different calendar"
+              className="p-0.5 rounded-md shadow-sm-custom text-foreground/40 hover:text-foreground bg-card/95 transition-base"
+            >
+              <CalendarClock size={11} />
+            </button>
+          )}
           <button
             ref={renamePicker.btnRef}
             onClick={(e) => { e.stopPropagation(); openRename(); }}
@@ -184,6 +197,27 @@ export function GCalBusyBlock({
               Cancel
             </button>
           </div>
+        </div>,
+        document.body,
+      )}
+      {calendarPicker.pos && createPortal(
+        <div
+          style={{ position: 'fixed', top: calendarPicker.pos.top, right: calendarPicker.pos.right }}
+          className="z-[200] bg-card rounded-xl shadow-overlay border border-border p-1.5 flex flex-col gap-0.5 min-w-[150px] max-h-56 overflow-y-auto scroll-thin"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {calendars?.map((cal) => (
+            <button
+              key={cal.id}
+              onClick={() => { onSetCalendar?.(event, cal.id); calendarPicker.close(); }}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] text-left hover:bg-muted transition-base ${
+                event.calendarId === cal.id ? 'bg-muted font-semibold text-foreground' : 'text-foreground/80'
+              }`}
+            >
+              <span className="shrink-0 w-2 h-2 rounded-full" style={{ backgroundColor: cal.backgroundColor ?? '#999' }} />
+              <span className="truncate">{cal.summary}</span>
+            </button>
+          ))}
         </div>,
         document.body,
       )}

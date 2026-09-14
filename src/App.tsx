@@ -11,7 +11,7 @@ import { forceSeedData } from '@/lib/seed';
 import {
   isConfigured, isTokenValid, requestToken,
   refreshAccessToken, getStoredRefreshToken, clearAllTokens,
-  loadSyncedEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
+  loadSyncedEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, moveCalendarEvent,
   saveSyncedEvent, fetchWeekEvents, fetchCalendars, matchCalendarName, resolveLearnedOrRuleMatch,
   type SyncedEventInfo, type GCalBusyEvent, type GCalCalendar,
 } from '@/services/googleCalendar';
@@ -840,6 +840,24 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     });
   }, []);
 
+  // Reassign a real Google Calendar event (synced in, not created here) to a
+  // different one of her calendars — previously only app-created tasks had
+  // a calendar picker; a busy block had no way to change this at all.
+  const moveBusyEventCalendar = useCallback((ev: GCalBusyEvent, calendarId: string) => {
+    if (calendarId === ev.calendarId) return;
+    const calendarName = calendars.find(c => c.id === calendarId)?.summary ?? '';
+    const calendarColor = calendars.find(c => c.id === calendarId)?.backgroundColor;
+    moveCalendarEvent(ev.calendarId, ev.id, calendarId)
+      .catch(err => console.error('[App] failed to move busy event to new calendar:', err));
+    setBusyEventsByDay(prev => {
+      const next: Record<string, GCalBusyEvent[]> = {};
+      for (const [dayId, events] of Object.entries(prev)) {
+        next[dayId] = events.map(e => e.id === ev.id ? { ...e, calendarId, calendarName, calendarColor } : e);
+      }
+      return next;
+    });
+  }, [calendars]);
+
   const deleteTask = useCallback((id: string) => {
     const realId = getRealId(id);
     const task = tasks.find(t => t.id === realId);
@@ -1442,6 +1460,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 learnedCalendarKeywords={learnedCalendarKeywords}
                 onDeleteBusyEvent={deleteBusyEvent}
                 onResizeBusyEvent={resizeBusyEvent}
+                onSetBusyEventCalendar={moveBusyEventCalendar}
                 onQuickAdd={addScheduledTask}
               />
             </div>

@@ -472,6 +472,20 @@ export async function updateCalendarEvent(
   return res.json();
 }
 
+/**
+ * Move an existing event to a different calendar, via Google's dedicated
+ * `move` endpoint (preserves the event id/attendees/etc., unlike a
+ * delete+recreate) — used to let her reassign which calendar a real
+ * Google Calendar event (synced in, not created by this app) belongs to.
+ */
+export async function moveCalendarEvent(calendarId: string, eventId: string, destinationCalendarId: string): Promise<{ id: string }> {
+  const res = await gcalFetch(
+    `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}/move?destination=${encodeURIComponent(destinationCalendarId)}`,
+    { method: 'POST' }
+  );
+  return res.json();
+}
+
 /** Delete a synced event (used when a task is unscheduled or removed). */
 export async function deleteCalendarEvent(calendarId: string, eventId: string): Promise<void> {
   try {
