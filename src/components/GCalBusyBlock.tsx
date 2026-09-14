@@ -49,7 +49,10 @@ export function GCalBusyBlock({
   // re-read getDisplayTitle() — the override lives in localStorage, which
   // isn't itself reactive state React would otherwise notice changed.
   const [renameVersion, setRenameVersion] = useState(0);
-  const displayTitle = useMemo(() => getDisplayTitle(event.title), [event.title, renameVersion]);
+  const displayTitle = useMemo(
+    () => getDisplayTitle(event.title, event.translatedTitle ?? event.title),
+    [event.title, event.translatedTitle, renameVersion]
+  );
   const openRename = () => { setRenameDraft(getOwnOverride(event.title)); renamePicker.open(); };
   const saveRename = () => { setTitleOverride(event.title, renameDraft); setRenameVersion(v => v + 1); renamePicker.close(); };
   const displayHeight = resizeDeltaPx !== null ? Math.max(20, height + resizeDeltaPx) : height;
@@ -169,7 +172,7 @@ export function GCalBusyBlock({
             onKeyDown={(e) => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') renamePicker.close(); }}
             dir="auto"
             autoFocus
-            placeholder={event.title || 'Display name...'}
+            placeholder={displayTitle || 'Display name...'}
             className="w-full px-2 py-1.5 bg-muted border-none rounded-lg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
           <p className="text-[10px] text-muted-foreground/70">Only changes how it shows here — the real Google Calendar event is untouched.</p>

@@ -32,10 +32,14 @@ function loadOverrides(): Record<string, string> {
   }
 }
 
-export function getDisplayTitle(originalTitle: string): string {
+// `fallback` is what to show when she hasn't set an override — normally
+// just `originalTitle` itself, but callers can pass something derived from
+// it instead (e.g. an English translation of a Hebrew title) without
+// affecting the lookup key, which always stays the real original title.
+export function getDisplayTitle(originalTitle: string, fallback: string = originalTitle): string {
   const key = normalize(originalTitle);
   const overrides = loadOverrides();
-  return overrides[key] ?? DEFAULT_OVERRIDES[key] ?? originalTitle;
+  return overrides[key] ?? DEFAULT_OVERRIDES[key] ?? fallback;
 }
 
 /** Returns the custom override for this title, if she's set one herself (not counting the seeded defaults) — used to pre-fill the rename input with what she actually typed, not the resolved display text. */

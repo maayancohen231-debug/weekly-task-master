@@ -9,6 +9,8 @@
  * 4. Paste your Client ID below
  */
 
+import { translateText } from '@/lib/translate';
+
 export const GOOGLE_CLIENT_ID = '45693353250-orevcu10pnhfg4nlbidmp1nlj8nmtoto.apps.googleusercontent.com';
 
 const SCOPE = 'https://www.googleapis.com/auth/calendar';
@@ -34,6 +36,11 @@ export interface GCalCalendar {
 export interface GCalBusyEvent {
   id: string;
   title: string;
+  // English translation of `title` when it was Hebrew, filled in by
+  // fetchWeekEvents (undefined for a title that was already English, or if
+  // translation failed) — kept separate from `title` so the original text
+  // stays intact for anything keyed on it (e.g. eventTitleOverrides).
+  translatedTitle?: string;
   start: string; // ISO datetime
   end: string; // ISO datetime
   calendarId: string;
@@ -397,6 +404,22 @@ export async function fetchWeekEvents(timeMinISO: string, timeMaxISO: string): P
     if (r.status === 'fulfilled') events.push(...r.value);
     else console.warn('[googleCalendar] failed to fetch events for a calendar:', r.reason);
   }
+
+  // Fill in English translations for Hebrew titles pulled from her real
+  // calendars, so they read the same as titles created inside the app.
+  // translateText already no-ops (and stays fast) for a title that isn't
+  // Hebrew, so this is safe to run over every event unconditionally.
+  await Promise.all(
+    events.map(async (ev) => {
+      try {
+        const translated = await translateText(ev.title);
+        if (translated && translated !== ev.title) ev.translatedTitle = translated;
+      } catch (err) {
+        console.warn('[googleCalendar] failed to translate event title:', ev.title, err);
+      }
+    })
+  );
+
   return events;
 }
 
