@@ -40,7 +40,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     const block = response.content.find((b): b is Anthropic.TextBlock => b.type === 'text');
-    const translated = block?.text?.trim();
+    const raw = block?.text?.trim();
+    if (!raw) return res.status(502).json({ error: 'Empty translation' });
+
+    // The model doesn't always drop the quote marks it was told to strip
+    // (especially when the whole phrase, not just one word, was quoted) —
+    // strip any straight/curly/Hebrew quote character deterministically
+    // rather than relying on it, then clean up the whitespace left behind.
+    const translated = raw
+      .replace(/["'""''„‟׳״]/g, '')
+      .replace(/\s{2,}/g, ' ')
+      .trim();
     if (!translated) return res.status(502).json({ error: 'Empty translation' });
 
     return res.status(200).json({ translated });
