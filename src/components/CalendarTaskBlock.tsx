@@ -60,7 +60,12 @@ export function CalendarTaskBlock({
   const taskColor = task.color || 'none';
   const displayHeight = resizeDeltaPx !== null ? Math.max(20, height + resizeDeltaPx) : height;
   const compact = displayHeight < 40;
-  const endTime = task.startTime ? minutesToTime(timeToMinutes(task.startTime) + (task.durationMinutes ?? 30)) : undefined;
+  // Clamped to 23:59 so a task whose stored duration already pushes past
+  // midnight (old data from before resizing was capped, see handleResizeStart
+  // below) can't display as "26:00" — minutesToTime has no day wraparound.
+  const endTime = task.startTime
+    ? minutesToTime(Math.min(23 * 60 + 59, timeToMinutes(task.startTime) + (task.durationMinutes ?? 30)))
+    : undefined;
 
   // A scheduled task should look like a calendar event (colored by its Google
   // Calendar), not a todo item — the checkbox/status look stays in the task
@@ -143,9 +148,13 @@ export function CalendarTaskBlock({
       target.removeEventListener('pointerup', handleUp);
       setResizeDeltaPx(null);
       const deltaMinutes = (ev.clientY - startY) / pxPerMinute;
-      const snapped = Math.max(
-        MIN_DURATION_MINUTES,
-        Math.round((startDuration + deltaMinutes) / RESIZE_SNAP_MINUTES) * RESIZE_SNAP_MINUTES,
+      // Cap so the block's end can't cross midnight (e.g. dragging a 23:00
+      // block down used to save a 180min duration and show "23:00 – 26:00")
+      // — nothing above renders a "next day" continuation of the block.
+      const maxDuration = task.startTime ? Math.max(MIN_DURATION_MINUTES, 23 * 60 + 59 - timeToMinutes(task.startTime)) : Infinity;
+      const snapped = Math.min(
+        maxDuration,
+        Math.max(MIN_DURATION_MINUTES, Math.round((startDuration + deltaMinutes) / RESIZE_SNAP_MINUTES) * RESIZE_SNAP_MINUTES),
       );
       if (snapped !== startDuration) onResize(task.id, snapped);
     };
