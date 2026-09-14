@@ -29,8 +29,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         '"מעיין" -> "Maayan", "דובדבן" -> "Duvdevan", "חוסן" -> "Hosen") instead of translating ' +
         'them by their dictionary meaning, even when the name is also an ordinary Hebrew word — ' +
         'prefer a transliteration that would not itself read as an unrelated ordinary English word. ' +
-        'Respond with ONLY the translated text — no quotes, no explanation, no alternatives, no ' +
-        'leading or trailing punctuation beyond what the phrase itself needs.',
+        'Any span the user wrote inside quotation marks (straight "..." or Hebrew גרשיים ״...״/״) is ' +
+        'an explicit instruction to transliterate that span phonetically into Latin letters instead of ' +
+        'translating it by meaning, even for an ordinary word — this overrides the normal translation ' +
+        'for that span only. Drop the quote marks themselves from the output; just weave the ' +
+        'transliterated word or phrase naturally into the translated sentence. Translate the rest of ' +
+        'the phrase normally. Respond with ONLY the translated text — no quotes, no explanation, no ' +
+        'alternatives, no leading or trailing punctuation beyond what the phrase itself needs.',
       messages: [{ role: 'user', content: text }],
     });
 
