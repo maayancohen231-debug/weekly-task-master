@@ -175,6 +175,7 @@ export function GCalBusyBlock({
       )}
       {renamePicker.pos && createPortal(
         <div
+          ref={renamePicker.popRef}
           style={{ position: 'fixed', top: renamePicker.pos.top, right: renamePicker.pos.right }}
           className="z-[200] bg-card rounded-xl shadow-overlay border border-border p-2 flex flex-col gap-1.5 w-56"
           onClick={(e) => e.stopPropagation()}
@@ -202,6 +203,7 @@ export function GCalBusyBlock({
       )}
       {calendarPicker.pos && createPortal(
         <div
+          ref={calendarPicker.popRef}
           style={{ position: 'fixed', top: calendarPicker.pos.top, right: calendarPicker.pos.right }}
           className="z-[200] bg-card rounded-xl shadow-overlay border border-border p-1.5 flex flex-col gap-0.5 min-w-[150px] max-h-56 overflow-y-auto scroll-thin"
           onClick={(e) => e.stopPropagation()}

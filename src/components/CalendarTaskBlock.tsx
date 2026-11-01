@@ -233,6 +233,7 @@ export function CalendarTaskBlock({
           </button>
           {colorPicker.pos && createPortal(
             <div
+              ref={colorPicker.popRef}
               style={{ position: 'fixed', top: colorPicker.pos.top, right: colorPicker.pos.right }}
               className="z-[200] bg-card rounded-xl shadow-overlay border border-border p-2 grid grid-cols-6 gap-1.5"
               onClick={(e) => e.stopPropagation()}
@@ -265,6 +266,7 @@ export function CalendarTaskBlock({
             </button>
             {calendarPicker.pos && createPortal(
               <div
+                ref={calendarPicker.popRef}
                 style={{ position: 'fixed', top: calendarPicker.pos.top, right: calendarPicker.pos.right }}
                 className="z-[200] bg-card rounded-xl shadow-overlay border border-border p-1.5 flex flex-col gap-0.5 min-w-[150px] max-h-56 overflow-y-auto scroll-thin"
                 onClick={(e) => e.stopPropagation()}
