@@ -67,6 +67,12 @@ export function DayListView({
   sidebarBefore, sidebarAfter,
 }: DayListViewProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Opens on just today's column; "Whole week" shows Sun-Thu. Outside the
+  // current week (or on Fri/Sat, which the list doesn't cover) there's no
+  // "today" column, so the full week always shows.
+  const [showWeek, setShowWeek] = useState(false);
+  const todayInList = LIST_VIEW_DAYS.some(d => d.id === todayDayId);
+  const todayOnly = todayInList && !showWeek;
 
   const tasksByDay = useMemo(() => {
     const map: Record<string, Task[]> = {};
@@ -209,8 +215,24 @@ export function DayListView({
         {sidebarAfter}
       </div>
 
-      <div className="flex-1 flex gap-2 overflow-x-auto pb-2 min-h-0 scroll-thin">
-        {LIST_VIEW_DAYS.map((day, i) => (
+      <div className="flex-1 flex flex-col gap-2 min-h-0 min-w-0">
+      {todayInList && (
+        <div className="flex items-center gap-0.5 bg-muted rounded-xl p-0.5 self-start">
+          {([['today', 'Today'], ['week', 'Whole week']] as const).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setShowWeek(key === 'week')}
+              className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-base ${
+                (key === 'week') === showWeek ? 'bg-card text-foreground shadow-sm-custom' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className={`flex-1 flex gap-2 overflow-x-auto pb-2 min-h-0 scroll-thin ${todayOnly ? 'max-w-2xl' : ''}`}>
+        {LIST_VIEW_DAYS.map((day, i) => (todayOnly && day.id !== todayDayId) ? null : (
           <DayColumn key={day.id} dayId={day.id} label={day.label}
             date={formatDayDate(weekStart, i)} tasks={tasksByDay[day.id]}
             isToday={todayDayId === day.id} onDelete={onDelete}
@@ -219,6 +241,7 @@ export function DayListView({
             onMoveTask={moveTask}
           />
         ))}
+      </div>
       </div>
 
       <DragOverlay dropAnimation={{ sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: '0.5' } } }) }}>
