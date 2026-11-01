@@ -13,6 +13,7 @@ interface TaskSidebarPanelProps {
   onDelete: (id: string) => void;
   onCycleStatus: (id: string) => void;
   onToggleDaily: (id: string) => void;
+  onToggleWeekly: (id: string) => void;
   onSetColor: (id: string, color: TaskColor) => void;
   onSplitTask: (id: string) => void;
   libraryTasks: LibraryTask[];
@@ -30,7 +31,7 @@ interface TaskSidebarPanelProps {
  * viewing the Library tab.
  */
 export function TaskSidebarPanel({
-  tasks, onAddTask, onDelete, onCycleStatus, onToggleDaily, onSetColor, onSplitTask,
+  tasks, onAddTask, onDelete, onCycleStatus, onToggleDaily, onToggleWeekly, onSetColor, onSplitTask,
   libraryTasks, onAddLibraryTask, onDeleteLibraryTask, onSetLibraryColor, onSetLibraryDuration,
 }: TaskSidebarPanelProps) {
   const { setNodeRef, isOver } = useDroppable({ id: BANK_ID });
@@ -66,7 +67,7 @@ export function TaskSidebarPanel({
           onAddTask={onAddTask}
           onDelete={onDelete}
           onCycleStatus={onCycleStatus}
-          onToggleDaily={onToggleDaily}
+          onToggleDaily={onToggleDaily} onToggleWeekly={onToggleWeekly}
           onSetColor={onSetColor}
           onSplitTask={onSplitTask}
         />

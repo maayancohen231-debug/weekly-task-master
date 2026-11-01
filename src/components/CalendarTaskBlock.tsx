@@ -1,5 +1,5 @@
 import { useDraggable } from '@dnd-kit/core';
-import { Trash2, Repeat, Palette, Clock, CalendarClock, Copy } from 'lucide-react';
+import { Trash2, Repeat, Repeat1, Palette, Clock, CalendarClock, Copy } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Task, TaskColor } from '@/lib/task-types';
@@ -200,6 +200,7 @@ export function CalendarTaskBlock({
           style={hasOverlappingSecondary && !front ? { maxWidth: `${PRIMARY_TEXT_SAFE_PCT}%` } : undefined}
         >
           {task.isDaily && <Repeat size={9} className="shrink-0 text-foreground/50" />}
+          {task.isWeekly && <Repeat1 size={9} className="shrink-0 text-foreground/50" />}
           {isSynced && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[hsl(var(--task-blue))]" title="Synced to Google Calendar" />}
           {/* Status (done/in-progress/delayed) is a to-do concept — shown and
               editable in the Task Bank/List view only. A calendar block should

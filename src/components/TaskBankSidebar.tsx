@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
 import { useDraggable } from '@dnd-kit/core';
-import { Plus, Trash2, GripVertical, CheckCircle2, Repeat, Palette, Scissors, Loader2 } from 'lucide-react';
+import { Plus, Trash2, GripVertical, CheckCircle2, Repeat, Repeat1, Palette, Scissors, Loader2 } from 'lucide-react';
 import type { Task, TaskColor } from '@/lib/task-types';
-import { TASK_COLORS } from '@/lib/task-types';
+import { TASK_COLORS, DAYS } from '@/lib/task-types';
 import { statusClasses, statusBorderClasses, statusIconClasses, colorDotClasses, colorBorderOverrides } from '@/lib/task-styles';
 
 interface BankItemProps {
@@ -10,11 +10,12 @@ interface BankItemProps {
   onDelete: (id: string) => void;
   onCycleStatus: (id: string) => void;
   onToggleDaily: (id: string) => void;
+  onToggleWeekly: (id: string) => void;
   onSetColor: (id: string, color: TaskColor) => void;
   onSplitTask: (id: string) => void;
 }
 
-function BankItem({ task, onDelete, onCycleStatus, onToggleDaily, onSetColor, onSplitTask }: BankItemProps) {
+function BankItem({ task, onDelete, onCycleStatus, onToggleDaily, onToggleWeekly, onSetColor, onSplitTask }: BankItemProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id });
   const taskColor = task.color || 'none';
@@ -37,6 +38,7 @@ function BankItem({ task, onDelete, onCycleStatus, onToggleDaily, onSetColor, on
 
         <div className="flex-1 min-w-0 flex items-center gap-1">
           {task.isDaily && <Repeat size={10} className="shrink-0 text-primary/50" />}
+          {task.isWeekly && <Repeat1 size={10} className="shrink-0 text-primary/50" />}
           {taskColor !== 'none' && <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${colorDotClasses[taskColor]}`} />}
           <p className={`flex-1 text-[11px] leading-relaxed break-words ${task.status === 'green' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
             {task.content}
@@ -51,6 +53,13 @@ function BankItem({ task, onDelete, onCycleStatus, onToggleDaily, onSetColor, on
           title={task.isDaily ? 'Remove daily' : 'Set as daily'}
         >
           <Repeat size={12} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleWeekly(task.id); }}
+          className={`p-1 rounded-lg transition-base ${task.isWeekly ? 'text-primary' : 'text-muted-foreground/30 hover:text-primary/60'}`}
+          title={task.isWeekly ? 'Stop repeating weekly' : `Repeat every ${DAYS.find(d => d.id === task.dayId)?.label ?? 'week'}`}
+        >
+          <Repeat1 size={12} />
         </button>
         <div className="relative">
           <button
@@ -104,12 +113,13 @@ interface TaskBankSidebarProps {
   onDelete: (id: string) => void;
   onCycleStatus: (id: string) => void;
   onToggleDaily: (id: string) => void;
+  onToggleWeekly: (id: string) => void;
   onSetColor: (id: string, color: TaskColor) => void;
   onSplitTask: (id: string) => void;
 }
 
 export function TaskBankSidebar({
-  tasks, onAddTask, onDelete, onCycleStatus, onToggleDaily, onSetColor, onSplitTask,
+  tasks, onAddTask, onDelete, onCycleStatus, onToggleDaily, onToggleWeekly, onSetColor, onSplitTask,
 }: TaskBankSidebarProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState('');
@@ -182,7 +192,7 @@ export function TaskBankSidebar({
             task={task}
             onDelete={onDelete}
             onCycleStatus={onCycleStatus}
-            onToggleDaily={onToggleDaily}
+            onToggleDaily={onToggleDaily} onToggleWeekly={onToggleWeekly}
             onSetColor={onSetColor}
             onSplitTask={onSplitTask}
           />

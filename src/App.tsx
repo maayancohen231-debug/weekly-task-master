@@ -527,10 +527,28 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     setStorageData(prev => {
       const weekTasks = prev.tasksByWeek[weekKey] ?? [];
 
-      const allDailyTasks = Object.values(prev.tasksByWeek).flat().filter(t => t.isDaily);
-      if (allDailyTasks.length === 0) return prev;
-
       const deletedKeys = new Set(prev.deletedRecurringKeys ?? []);
+
+      // Weekly series: the copy from the closest week at-or-before this one
+      // is the template (so a move/rename made last week carries forward);
+      // if this week is before the series started, nothing is added.
+      const weeklyTemplates = new Map<string, { wk: string; t: Task }>();
+      for (const [wk, wkTasks] of Object.entries(prev.tasksByWeek)) {
+        if (wk > weekKey) continue;
+        for (const t of wkTasks) {
+          if (!t.isWeekly || !t.recurId || deletedKeys.has(`weekly:${t.recurId}`)) continue;
+          const cur = weeklyTemplates.get(t.recurId);
+          if (!cur || wk > cur.wk) weeklyTemplates.set(t.recurId, { wk, t });
+        }
+      }
+      const weekRecurIds = new Set(weekTasks.map(t => t.recurId).filter(Boolean));
+      const weeklyToAdd = [...weeklyTemplates.values()]
+        .map(v => v.t)
+        .filter(t => !weekRecurIds.has(t.recurId));
+
+      const allDailyTasks = Object.values(prev.tasksByWeek).flat().filter(t => t.isDaily);
+      if (allDailyTasks.length === 0 && weeklyToAdd.length === 0) return prev;
+
       const seen = new Set<string>();
       const templates: Task[] = [];
       for (const t of allDailyTasks) {
@@ -540,7 +558,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       }
 
       const existingKeys = new Set(weekTasks.filter(t => t.isDaily).map(t => `${t.content}|${t.dayId}`));
-      const toAdd = templates.filter(t => !existingKeys.has(`${t.content}|${t.dayId}`));
+      const toAdd = [...templates.filter(t => !existingKeys.has(`${t.content}|${t.dayId}`)), ...weeklyToAdd];
       if (toAdd.length === 0) return prev;
 
       const newTasks: Task[] = toAdd.map((t, i) => ({
@@ -858,6 +876,36 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     });
   }, [calendars]);
 
+  // Ends a weekly series from the current week onward: copies already
+  // auto-created in later weeks are removed (with their Calendar events),
+  // past weeks keep their copies as plain tasks (history), and a tombstone stops the
+  // auto-populate effect from bringing it back. The current week's copy is
+  // removed on delete, or kept as a plain one-off task when just toggled off.
+  const stopWeeklySeries = useCallback((recurId: string, removeCurrent: boolean) => {
+    const futureIds: string[] = [];
+    Object.entries(storageData.tasksByWeek).forEach(([wk, wkTasks]) => {
+      if (wk <= weekKey) return;
+      wkTasks.forEach(t => { if (t.recurId === recurId) futureIds.push(t.id); });
+    });
+    const currentCopy = (storageData.tasksByWeek[weekKey] ?? []).find(t => t.recurId === recurId);
+    removeSyncedEvents([...futureIds, ...(removeCurrent && currentCopy ? [currentCopy.id] : [])]);
+    const key = `weekly:${recurId}`;
+    setStorageData(prev => ({
+      ...prev,
+      tasksByWeek: Object.fromEntries(
+        Object.entries(prev.tasksByWeek).map(([wk, wkTasks]) => [
+          wk,
+          wk > weekKey || (wk === weekKey && removeCurrent)
+            ? wkTasks.filter(t => t.recurId !== recurId)
+            : wkTasks.map(t => t.recurId === recurId ? { ...t, isWeekly: false, recurId: undefined } : t),
+        ]),
+      ),
+      deletedRecurringKeys: prev.deletedRecurringKeys.includes(key)
+        ? prev.deletedRecurringKeys
+        : [...prev.deletedRecurringKeys, key],
+    }));
+  }, [storageData.tasksByWeek, weekKey, setStorageData, removeSyncedEvents]);
+
   const deleteTask = useCallback((id: string) => {
     const realId = getRealId(id);
     const task = tasks.find(t => t.id === realId);
@@ -866,7 +914,9 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       const keys = task.isDaily ? DAYS.map(d => `${realId}_${d.id}`) : [realId];
       removeSyncedEvents(keys);
     }
-    if (task.isDaily) {
+    if (task.isWeekly && task.recurId) {
+      stopWeeklySeries(task.recurId, true);
+    } else if (task.isDaily) {
       // A recurring task is stored as one copy per week (same content+dayId,
       // the identity key the auto-populate effect above matches on). Deleting
       // only the current week's copy left every other week's copy in place,
@@ -893,7 +943,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     } else {
       setTasks(prev => prev.filter(t => t.id !== realId));
     }
-  }, [tasks, setTasks, setStorageData, removeSyncedEvents]);
+  }, [tasks, setTasks, setStorageData, removeSyncedEvents, stopWeeklySeries]);
 
   // Duplicates onto the same day/time as a one-off (not recurring, even if the
   // original is isDaily) — it lands stacked side by side with the original
@@ -904,7 +954,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     if (!task) return;
     const newId = genId();
     setTasks(prev => [...prev, {
-      ...task, id: newId, isDaily: false, dailyStatuses: undefined, sortOrder: prev.length,
+      ...task, id: newId, isDaily: false, dailyStatuses: undefined, isWeekly: false, recurId: undefined, sortOrder: prev.length,
     }]);
     if (task.startTime) {
       const dayIndex = DAYS.findIndex(d => d.id === task.dayId);
@@ -940,6 +990,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     const task = tasks.find(t => t.id === realId);
     if (!task) return;
     const turningOn = !task.isDaily;
+    if (turningOn && task.isWeekly && task.recurId) stopWeeklySeries(task.recurId, false);
     setTasks(prev => prev.map(t => t.id === realId ? { ...t, isDaily: turningOn } : t));
     if (turningOn) {
       // The user explicitly wants this content+day recurring again — lift
@@ -964,7 +1015,22 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       const dayIndex = DAYS.findIndex(d => d.id === task.dayId);
       syncTaskToCalendar(realId, task.content, dayIndex, task.startTime!, duration, task.calendarId);
     }
-  }, [tasks, setTasks, setStorageData, removeSyncedEvents, syncTaskToCalendar]);
+  }, [tasks, setTasks, setStorageData, removeSyncedEvents, syncTaskToCalendar, stopWeeklySeries]);
+
+  const toggleWeekly = useCallback((id: string) => {
+    const realId = getRealId(id);
+    const task = tasks.find(t => t.id === realId);
+    if (!task) return;
+    if (task.isWeekly && task.recurId) {
+      stopWeeklySeries(task.recurId, false);
+      return;
+    }
+    // Weekly and daily are mutually exclusive — switching from daily goes
+    // through toggleDaily so its per-day Calendar events get migrated back.
+    if (task.isDaily) toggleDaily(id);
+    const recurId = genId();
+    setTasks(prev => prev.map(t => t.id === realId ? { ...t, isWeekly: true, recurId, isDaily: false } : t));
+  }, [tasks, setTasks, stopWeeklySeries, toggleDaily]);
 
   const setTaskColor = useCallback((id: string, color: TaskColor) => {
     const realId = getRealId(id);
@@ -1421,7 +1487,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 onAddTask={addUnscheduledTask}
                 onDelete={deleteTask}
                 onCycleStatus={cycleStatus}
-                onToggleDaily={toggleDaily}
+                onToggleDaily={toggleDaily} onToggleWeekly={toggleWeekly}
                 onSetColor={setTaskColor}
                 onSplitTask={splitTask}
                 libraryTasks={libraryTasks}
@@ -1487,7 +1553,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
             setTasks={setTasks}
             onDelete={deleteTask}
             onCycleStatus={cycleStatus}
-            onToggleDaily={toggleDaily}
+            onToggleDaily={toggleDaily} onToggleWeekly={toggleWeekly}
             onSetColor={setTaskColor}
             onSplitTask={splitTask}
             libraryTasks={libraryTasks}

@@ -38,6 +38,7 @@ interface DayListViewProps {
   onDelete: (id: string) => void;
   onCycleStatus: (id: string) => void;
   onToggleDaily: (id: string) => void;
+  onToggleWeekly: (id: string) => void;
   onSetColor: (id: string, color: TaskColor) => void;
   onSplitTask: (id: string) => void;
   libraryTasks: LibraryTask[];
@@ -61,7 +62,7 @@ interface DayListViewProps {
  */
 export function DayListView({
   tasks, weekStart, todayDayId, setTasks,
-  onDelete, onCycleStatus, onToggleDaily, onSetColor, onSplitTask,
+  onDelete, onCycleStatus, onToggleDaily, onToggleWeekly, onSetColor, onSplitTask,
   libraryTasks, onAddLibraryTask, onDeleteLibraryTask, onSetLibraryColor, onSetLibraryDuration,
   sidebarBefore, sidebarAfter,
 }: DayListViewProps) {
@@ -213,7 +214,7 @@ export function DayListView({
           <DayColumn key={day.id} dayId={day.id} label={day.label}
             date={formatDayDate(weekStart, i)} tasks={tasksByDay[day.id]}
             isToday={todayDayId === day.id} onDelete={onDelete}
-            onCycleStatus={onCycleStatus} onToggleDaily={onToggleDaily}
+            onCycleStatus={onCycleStatus} onToggleDaily={onToggleDaily} onToggleWeekly={onToggleWeekly}
             onSetColor={onSetColor} onSplitTask={onSplitTask} onAddInline={addInlineTask}
             onMoveTask={moveTask}
           />

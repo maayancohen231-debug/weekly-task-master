@@ -20,6 +20,10 @@ export interface Task {
   dayId: string;
   isDaily: boolean;
   dailyStatuses?: Record<string, TaskStatus>;
+  /** Repeats every week on its own dayId (e.g. every Sunday). Each week holds
+   * its own copy; copies of one series share `recurId`. */
+  isWeekly?: boolean;
+  recurId?: string;
   sortOrder: number;
   startTime?: string; // "HH:mm", 24h
   durationMinutes?: number;

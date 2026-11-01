@@ -1,9 +1,9 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Trash2, CheckCircle2, Repeat, Palette, Scissors, CalendarPlus, ChevronUp, ChevronDown, Clock } from 'lucide-react';
+import { GripVertical, Trash2, CheckCircle2, Repeat, Repeat1, Palette, Scissors, CalendarPlus, ChevronUp, ChevronDown, Clock } from 'lucide-react';
 import { useState } from 'react';
 import type { Task, TaskColor } from '@/lib/task-types';
-import { TASK_COLORS } from '@/lib/task-types';
+import { TASK_COLORS, DAYS } from '@/lib/task-types';
 import { statusClasses, statusBorderClasses, statusIconClasses, colorDotClasses, colorBorderOverrides } from '@/lib/task-styles';
 
 interface TaskItemProps {
@@ -11,6 +11,7 @@ interface TaskItemProps {
   onDelete?: (id: string) => void;
   onCycleStatus?: (id: string) => void;
   onToggleDaily?: (id: string) => void;
+  onToggleWeekly?: (id: string) => void;
   onSetColor?: (id: string, color: TaskColor) => void;
   onSplitTask?: (id: string) => void;
   onMoveUp?: () => void;
@@ -21,7 +22,7 @@ interface TaskItemProps {
 }
 
 export function TaskItem({
-  task, onDelete, onCycleStatus, onToggleDaily, onSetColor, onSplitTask,
+  task, onDelete, onCycleStatus, onToggleDaily, onToggleWeekly, onSetColor, onSplitTask,
   onMoveUp, onMoveDown, onAddToCalendar, isSynced = false, isOverlay = false,
 }: TaskItemProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -42,7 +43,7 @@ export function TaskItem({
       {...attributes}
       {...listeners}
       className={`group relative flex flex-col gap-1 px-3 py-2.5 rounded-xl border transition-base cursor-grab active:cursor-grabbing ${statusClasses[task.status]} ${statusBorderClasses[task.status]} ${colorBorderOverrides[taskColor]} ${
-        isOverlay ? 'shadow-overlay scale-[1.02]' : 'shadow-sm-custom hover:shadow-hover'
+        isOverlay ? 'shadow-overlay scale-[1.02]' : 'shadow-sm-custom hover:shadow-hover hover:-translate-y-0.5'
       }`}
       onClick={() => onCycleStatus?.(task.id)}
     >
@@ -54,6 +55,9 @@ export function TaskItem({
         <div className="flex-1 min-w-0 flex items-center gap-1">
           {task.isDaily && (
             <Repeat size={10} className="shrink-0 text-primary/50" />
+          )}
+          {task.isWeekly && (
+            <Repeat1 size={10} className="shrink-0 text-primary/50" />
           )}
           {taskColor !== 'none' && (
             <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${colorDotClasses[taskColor]}`} />
@@ -101,6 +105,15 @@ export function TaskItem({
             title={task.isDaily ? 'Remove daily' : 'Set as daily'}
           >
             <Repeat size={12} />
+          </button>
+        )}
+        {onToggleWeekly && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleWeekly(task.id); }}
+            className={`p-1 rounded-lg transition-base ${task.isWeekly ? 'text-primary' : 'text-muted-foreground/30 hover:text-primary/60'}`}
+            title={task.isWeekly ? 'Stop repeating weekly' : `Repeat every ${DAYS.find(d => d.id === task.dayId)?.label ?? 'week'}`}
+          >
+            <Repeat1 size={12} />
           </button>
         )}
         {onSetColor && (

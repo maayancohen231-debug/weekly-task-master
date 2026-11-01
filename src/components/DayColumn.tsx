@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Plus, Loader2, X } from 'lucide-react';
+import { Plus, Loader2, X, Sparkles } from 'lucide-react';
 import { TaskItem } from './TaskItem';
 import type { Task, TaskColor } from '@/lib/task-types';
 
@@ -14,6 +14,7 @@ interface DayColumnProps {
   onDelete: (id: string) => void;
   onCycleStatus: (id: string) => void;
   onToggleDaily: (id: string) => void;
+  onToggleWeekly: (id: string) => void;
   onSetColor: (id: string, color: TaskColor) => void;
   onSplitTask: (id: string) => void;
   onAddInline: (dayId: string, text: string) => Promise<void>;
@@ -22,7 +23,7 @@ interface DayColumnProps {
 
 export function DayColumn({
   dayId, label, date, tasks, isToday,
-  onDelete, onCycleStatus, onToggleDaily, onSetColor, onSplitTask, onAddInline,
+  onDelete, onCycleStatus, onToggleDaily, onToggleWeekly, onSetColor, onSplitTask, onAddInline,
   onMoveTask,
 }: DayColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: dayId });
@@ -71,6 +72,14 @@ export function DayColumn({
       </div>
 
       <div className="flex-1 px-3 pb-2 flex flex-col gap-2 min-h-[240px] overflow-y-auto scroll-thin">
+        {tasks.length === 0 && !isEditing && (
+          <div className="flex-1 flex flex-col items-center justify-center gap-1.5 py-6 text-center">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary/50">
+              <Sparkles size={16} />
+            </span>
+            <p className="text-[11px] text-muted-foreground/50">No tasks yet</p>
+          </div>
+        )}
         <SortableContext items={tasks} strategy={verticalListSortingStrategy}>
           {tasks.map((task) => (
             <TaskItem
@@ -78,7 +87,7 @@ export function DayColumn({
               task={task}
               onDelete={onDelete}
               onCycleStatus={onCycleStatus}
-              onToggleDaily={onToggleDaily}
+              onToggleDaily={onToggleDaily} onToggleWeekly={onToggleWeekly}
               onSetColor={onSetColor}
               onSplitTask={onSplitTask}
               onMoveUp={() => onMoveTask(task.id, 'up')}
