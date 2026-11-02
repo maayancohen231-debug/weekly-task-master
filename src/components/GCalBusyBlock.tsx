@@ -7,6 +7,7 @@ import { hexToRgba } from '@/lib/task-styles';
 import { PX_PER_MINUTE as BASE_PX_PER_MINUTE, PRIMARY_TEXT_SAFE_PCT } from '@/lib/calendar-grid';
 import { usePortalPosition } from '@/lib/usePortalPosition';
 import { getDisplayTitle, getOwnOverride, setTitleOverride } from '@/lib/eventTitleOverrides';
+import { InvitePeopleButton } from './InvitePeopleButton';
 
 const MIN_DURATION_MINUTES = 15;
 const RESIZE_SNAP_MINUTES = 15;
@@ -154,6 +155,11 @@ export function GCalBusyBlock({
               <CalendarClock size={11} />
             </button>
           )}
+          <InvitePeopleButton
+            calendarId={event.calendarId}
+            eventId={event.id}
+            className="p-0.5 rounded-md shadow-sm-custom text-foreground/40 hover:text-foreground bg-card/95 transition-base"
+          />
           <button
             ref={renamePicker.btnRef}
             onClick={(e) => { e.stopPropagation(); openRename(); }}

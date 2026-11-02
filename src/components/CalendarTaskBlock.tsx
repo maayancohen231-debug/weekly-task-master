@@ -6,8 +6,9 @@ import type { Task, TaskColor } from '@/lib/task-types';
 import { TASK_COLORS } from '@/lib/task-types';
 import { colorDotClasses, colorBorderOverrides, colorBgTint, hexToRgba } from '@/lib/task-styles';
 import { PX_PER_MINUTE as BASE_PX_PER_MINUTE, timeToMinutes, minutesToTime, PRIMARY_TEXT_SAFE_PCT } from '@/lib/calendar-grid';
-import { matchCalendarName, type GCalCalendar } from '@/services/googleCalendar';
+import { matchCalendarName, type GCalCalendar, type SyncedEventInfo } from '@/services/googleCalendar';
 import { usePortalPosition } from '@/lib/usePortalPosition';
+import { InvitePeopleButton } from './InvitePeopleButton';
 
 const MIN_DURATION_MINUTES = 15;
 const RESIZE_SNAP_MINUTES = 15;
@@ -27,6 +28,9 @@ interface CalendarTaskBlockProps {
   onSetCalendar?: (id: string, calendarId: string) => void;
   learnedCalendarKeywords?: Record<string, string>;
   isSynced?: boolean;
+  // The real Google Calendar event this block was synced to, if any —
+  // needed to invite people to it.
+  syncedEvent?: SyncedEventInfo;
   isOverlay?: boolean;
   zIndex?: number;
   pxPerMinute?: number;
@@ -44,7 +48,7 @@ interface CalendarTaskBlockProps {
 
 export function CalendarTaskBlock({
   task, top, height, left, width, onDelete, onDuplicate, onEdit, onSetColor, onResize, calendars, onSetCalendar,
-  learnedCalendarKeywords, isSynced = false, isOverlay = false, zIndex = 5, pxPerMinute = BASE_PX_PER_MINUTE,
+  learnedCalendarKeywords, isSynced = false, syncedEvent, isOverlay = false, zIndex = 5, pxPerMinute = BASE_PX_PER_MINUTE,
   hasOverlappingSecondary = false, isEditing = false, onOpenEdit,
 }: CalendarTaskBlockProps) {
   const colorPicker = usePortalPosition();
@@ -287,6 +291,13 @@ export function CalendarTaskBlock({
               document.body,
             )}
           </div>
+        )}
+        {syncedEvent && !isOverlay && (
+          <InvitePeopleButton
+            calendarId={syncedEvent.calendarId}
+            eventId={syncedEvent.eventId}
+            className="p-0.5 text-muted-foreground/40 hover:text-foreground/70 rounded transition-base"
+          />
         )}
         {onDuplicate && (
           <button

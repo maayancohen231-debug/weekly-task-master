@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDroppable, useDndMonitor } from '@dnd-kit/core';
 import { Plus, X, ZoomIn, ZoomOut } from 'lucide-react';
 import type { Task, TaskColor } from '@/lib/task-types';
-import type { GCalBusyEvent, GCalCalendar } from '@/services/googleCalendar';
+import type { GCalBusyEvent, GCalCalendar, SyncedEventInfo } from '@/services/googleCalendar';
 import {
   GRID_START_HOUR, GRID_END_HOUR, GRID_HOURS, SLOT_MINUTES, PX_PER_HOUR, SLOT_TIMES,
-  minutesFromGridStart, slotId, layoutOverlaps, clampToGridPx, cascadePosition,
+  minutesFromGridStart, slotId, layoutOverlaps, clampToGridPx, cascadePosition, timeToMinutes, minutesToTime,
 } from '@/lib/calendar-grid';
 import { CalendarTaskBlock } from './CalendarTaskBlock';
 import { GCalBusyBlock } from './GCalBusyBlock';
@@ -27,6 +27,7 @@ interface WeekCalendarGridProps {
   scheduledTasksByDay: Record<string, Task[]>;
   busyEventsByDay: Record<string, GCalBusyEvent[]>;
   syncedTaskIds: Set<string>;
+  syncedEvents?: Record<string, SyncedEventInfo>;
   onDelete: (id: string) => void;
   onDuplicate?: (id: string) => void;
   onEdit?: (id: string, updates: { content?: string; startTime?: string }) => void;
@@ -89,7 +90,7 @@ function dayOfMonth(dateStr: string): string {
 }
 
 export function WeekCalendarGrid({
-  days, todayDayId, scheduledTasksByDay, busyEventsByDay, syncedTaskIds,
+  days, todayDayId, scheduledTasksByDay, busyEventsByDay, syncedTaskIds, syncedEvents,
   onDelete, onDuplicate, onEdit, onSetColor, onResize, calendars, onSetCalendar, learnedCalendarKeywords, onDeleteBusyEvent, onResizeBusyEvent, onSetBusyEventCalendar, onQuickAdd,
 }: WeekCalendarGridProps) {
   const tzLabel = useMemo(timezoneLabel, []);
@@ -156,9 +157,23 @@ export function WeekCalendarGrid({
     },
   });
 
-  const openQuickAdd = (dayId: string, time: string) => {
+  // Clicking a half-hour slot that an earlier event ends partway into
+  // (say 19:40, in the 19:30 slot) starts the new event right where that one
+  // ends instead of at the slot's round time — otherwise it would start at
+  // 19:30, overlap the 10 minutes before, and get squeezed side-by-side.
+  const startAfterEventEndingIn = (dayId: string, slotTime: string): string => {
+    const slotStart = timeToMinutes(slotTime);
+    const ends = [
+      ...(scheduledTasksByDay[dayId] ?? []).map(t => timeToMinutes(t.startTime!) + (t.durationMinutes ?? 30)),
+      ...(busyEventsByDay[dayId] ?? []).map(ev => timeToMinutes(eventTimeString(new Date(ev.end)))),
+    ].filter(end => end > slotStart && end < slotStart + SLOT_MINUTES);
+    return ends.length ? minutesToTime(Math.max(...ends)) : slotTime;
+  };
+
+  const openQuickAdd = (dayId: string, slotTime: string) => {
     if (!onQuickAdd || justDraggedRef.current) return;
     setEditingTaskId(null);
+    const time = startAfterEventEndingIn(dayId, slotTime);
     setQuickAdd({ dayId, time });
     setQuickAddValue('');
     setTimeout(() => quickAddInputRef.current?.focus(), 0);
@@ -321,6 +336,7 @@ export function WeekCalendarGrid({
                         onSetCalendar={onSetCalendar}
                         learnedCalendarKeywords={learnedCalendarKeywords}
                         isSynced={syncedTaskIds.has(task.id)}
+                        syncedEvent={syncedEvents?.[task.id] ?? syncedEvents?.[`${task.id}_${day.id}`]}
                         isEditing={editingTaskId === task.id}
                         onOpenEdit={setEditingTaskId}
                       />

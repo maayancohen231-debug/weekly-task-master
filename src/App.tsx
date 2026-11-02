@@ -1533,6 +1533,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 scheduledTasksByDay={scheduledTasksByDay}
                 busyEventsByDay={visibleBusyEventsByDay}
                 syncedTaskIds={syncedTaskIds}
+                syncedEvents={syncedEvents}
                 onDelete={deleteTask}
                 onDuplicate={duplicateTask}
                 onEdit={editTask}

@@ -399,10 +399,24 @@ export async function fetchWeekEvents(timeMinISO: string, timeMaxISO: string): P
     })
   );
 
+  // The same meeting can sit on two of her calendars at once (e.g. she's
+  // invited to an event that also lives on a shared calendar) — Google gives
+  // both copies the SAME event id. Left in, the overlap layout (keyed by id)
+  // saw two items, gave the pair a 2-column split, then collapsed both onto
+  // column 1: one half-width block with an empty gap to its left. Keep only
+  // the first copy (calendar-list order).
   const events: GCalBusyEvent[] = [];
+  const seenIds = new Set<string>();
   for (const r of results) {
-    if (r.status === 'fulfilled') events.push(...r.value);
-    else console.warn('[googleCalendar] failed to fetch events for a calendar:', r.reason);
+    if (r.status !== 'fulfilled') {
+      console.warn('[googleCalendar] failed to fetch events for a calendar:', r.reason);
+      continue;
+    }
+    for (const ev of r.value) {
+      if (seenIds.has(ev.id)) continue;
+      seenIds.add(ev.id);
+      events.push(ev);
+    }
   }
 
   // Fill in English translations for Hebrew titles pulled from her real
@@ -484,6 +498,39 @@ export async function moveCalendarEvent(calendarId: string, eventId: string, des
     { method: 'POST' }
   );
   return res.json();
+}
+
+export interface GCalAttendee {
+  email: string;
+  displayName?: string;
+  responseStatus?: 'needsAction' | 'declined' | 'tentative' | 'accepted';
+  organizer?: boolean;
+  self?: boolean;
+}
+
+/** Read who is currently invited to an event. */
+export async function fetchEventAttendees(calendarId: string, eventId: string): Promise<GCalAttendee[]> {
+  const res = await gcalFetch(`/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?fields=attendees`);
+  const data = await res.json();
+  return (data.attendees ?? []) as GCalAttendee[];
+}
+
+/**
+ * Replace an event's guest list and have Google email the change
+ * (`sendUpdates=all`) — new guests get a real invitation, removed ones a
+ * cancellation. PATCH replaces the whole `attendees` array, so callers pass
+ * the full list (existing guests included), never just the additions.
+ */
+export async function setEventAttendees(calendarId: string, eventId: string, attendees: GCalAttendee[]): Promise<GCalAttendee[]> {
+  // Existing guests are sent back exactly as fetched (responseStatus
+  // included) so re-saving the list never resets someone's yes/no.
+  const body = { attendees };
+  const res = await gcalFetch(
+    `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}?sendUpdates=all&fields=attendees`,
+    { method: 'PATCH', body: JSON.stringify(body) }
+  );
+  const data = await res.json();
+  return (data.attendees ?? []) as GCalAttendee[];
 }
 
 /** Delete a synced event (used when a task is unscheduled or removed). */
