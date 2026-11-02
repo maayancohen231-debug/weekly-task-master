@@ -457,6 +457,23 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   const libraryTasks = storageData.libraryTasks;
   const learnedCalendarKeywords = storageData.learnedCalendarKeywords;
 
+  // Calendar pickers list the calendars she actually uses first. "Use" is
+  // counted from what is already stored — keywords pointing at a calendar,
+  // every task ever synced into it, and this week's events in it — so the
+  // order is right from the first load with no new tracking. Display only:
+  // matching logic keeps the raw `calendars`, whose order picks the default.
+  const calendarsByUse = useMemo(() => {
+    const score = new Map<string, number>();
+    const bump = (id: string | undefined) => { if (id) score.set(id, (score.get(id) ?? 0) + 1); };
+    Object.values(learnedCalendarKeywords).forEach(bump);
+    Object.values(syncedEvents).forEach(info => bump(info.calendarId));
+    Object.values(busyEventsByDay).flat().forEach(ev => bump(ev.calendarId));
+    return calendars
+      .map((cal, i) => ({ cal, i, n: score.get(cal.id) ?? 0 }))
+      .sort((a, b) => b.n - a.n || a.i - b.i)
+      .map(x => x.cal);
+  }, [calendars, learnedCalendarKeywords, syncedEvents, busyEventsByDay]);
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storageData));
   }, [storageData]);
@@ -1456,7 +1473,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
             </button>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {calendars.map(cal => (
+            {calendarsByUse.map(cal => (
               <button
                 key={cal.id}
                 onClick={() => resolvePendingCalendarAsk(cal.id)}
@@ -1521,7 +1538,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
                 onEdit={editTask}
                 onSetColor={setTaskColor}
                 onResize={resizeTask}
-                calendars={calendars}
+                calendars={calendarsByUse}
                 onSetCalendar={setTaskCalendar}
                 learnedCalendarKeywords={learnedCalendarKeywords}
                 onDeleteBusyEvent={deleteBusyEvent}
@@ -1625,7 +1642,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
 
       {showCalendarKeywords && (
         <CalendarKeywordsModal
-          calendars={calendars}
+          calendars={calendarsByUse}
           learnedKeywords={learnedCalendarKeywords}
           onAdd={learnCalendarKeyword}
           onRemove={removeCalendarKeyword}
