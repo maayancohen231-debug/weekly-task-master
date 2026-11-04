@@ -5,7 +5,7 @@ import type { Task, TaskColor } from '@/lib/task-types';
 import type { GCalBusyEvent, GCalCalendar, SyncedEventInfo } from '@/services/googleCalendar';
 import {
   GRID_START_HOUR, GRID_END_HOUR, GRID_HOURS, SLOT_MINUTES, PX_PER_HOUR, SLOT_TIMES,
-  minutesFromGridStart, slotId, layoutOverlaps, clampToGridPx, cascadePosition, timeToMinutes, minutesToTime,
+  minutesFromGridStart, slotId, layoutOverlaps, clampToGridPx, cascadePosition, timeToMinutes, startAfterEndsIn,
 } from '@/lib/calendar-grid';
 import { CalendarTaskBlock } from './CalendarTaskBlock';
 import { GCalBusyBlock } from './GCalBusyBlock';
@@ -157,23 +157,13 @@ export function WeekCalendarGrid({
     },
   });
 
-  // Clicking a half-hour slot that an earlier event ends partway into
-  // (say 19:40, in the 19:30 slot) starts the new event right where that one
-  // ends instead of at the slot's round time — otherwise it would start at
-  // 19:30, overlap the 10 minutes before, and get squeezed side-by-side.
-  const startAfterEventEndingIn = (dayId: string, slotTime: string): string => {
-    const slotStart = timeToMinutes(slotTime);
-    const ends = [
-      ...(scheduledTasksByDay[dayId] ?? []).map(t => timeToMinutes(t.startTime!) + (t.durationMinutes ?? 30)),
-      ...(busyEventsByDay[dayId] ?? []).map(ev => timeToMinutes(eventTimeString(new Date(ev.end)))),
-    ].filter(end => end > slotStart && end < slotStart + SLOT_MINUTES);
-    return ends.length ? minutesToTime(Math.max(...ends)) : slotTime;
-  };
-
   const openQuickAdd = (dayId: string, slotTime: string) => {
     if (!onQuickAdd || justDraggedRef.current) return;
     setEditingTaskId(null);
-    const time = startAfterEventEndingIn(dayId, slotTime);
+    const time = startAfterEndsIn(slotTime, [
+      ...(scheduledTasksByDay[dayId] ?? []).map(t => timeToMinutes(t.startTime!) + (t.durationMinutes ?? 30)),
+      ...(busyEventsByDay[dayId] ?? []).map(ev => timeToMinutes(eventTimeString(new Date(ev.end)))),
+    ]);
     setQuickAdd({ dayId, time });
     setQuickAddValue('');
     setTimeout(() => quickAddInputRef.current?.focus(), 0);

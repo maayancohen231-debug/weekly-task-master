@@ -27,7 +27,7 @@ import { DayListView } from '@/components/DayListView';
 import { CalendarKeywordsModal } from '@/components/CalendarKeywordsModal';
 import { translateText } from '@/lib/translate';
 import { parseQuickEventText } from '@/lib/parseQuickEvent';
-import { parseSlotId, BANK_ID } from '@/lib/calendar-grid';
+import { parseSlotId, BANK_ID, startAfterEndsIn, timeToMinutes } from '@/lib/calendar-grid';
 import {
   DAYS, DAY_INDEX_TO_ID, getWeekSunday, getWeekKey, formatDayDate, getMonthYear, getWeekRange, nextStatus,
   formatLocalDateTime,
@@ -1209,6 +1209,26 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     const aid = active.id as string;
     const overId = over.id as string;
 
+    // Same rule as clicking an empty slot: a drop into a half-hour slot that
+    // another event ends partway into (08:45, in the 08:30 slot) starts right
+    // after it instead of overlapping it. The item being dragged is skipped
+    // so its own old end time doesn't count.
+    const dropSlot = (() => {
+      const slot = parseSlotId(overId);
+      if (!slot) return null;
+      const draggedId = aid.startsWith('busy_') ? aid.slice('busy_'.length) : getRealId(aid);
+      const toMin = (d: Date) => d.getHours() * 60 + d.getMinutes();
+      const ends = [
+        ...(scheduledTasksByDay[slot.dayId] ?? [])
+          .filter(t => getRealId(t.id) !== draggedId)
+          .map(t => timeToMinutes(t.startTime!) + (t.durationMinutes ?? 30)),
+        ...(busyEventsByDay[slot.dayId] ?? [])
+          .filter(ev => ev.id !== draggedId)
+          .map(ev => toMin(new Date(ev.end))),
+      ];
+      return { dayId: slot.dayId, time: startAfterEndsIn(slot.time, ends) };
+    })();
+
     // A read-only Google Calendar block dragged to a new slot: reschedule the
     // real event directly (no local Task record involved) and move it to the
     // new day bucket optimistically so the UI updates without waiting for
@@ -1217,7 +1237,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       const evId = aid.slice('busy_'.length);
       const found = Object.values(busyEventsByDay).flat().find(e => e.id === evId);
       if (!found) return;
-      const slot = parseSlotId(overId);
+      const slot = dropSlot;
       if (!slot) return;
       const { dayId, time } = slot;
       const dayIndex = DAYS.findIndex(d => d.id === dayId);
@@ -1239,7 +1259,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     // Library template dropped: create a new task, scheduled if dropped on a slot.
     const lib = libraryTasks.find(lt => lt.id === aid);
     if (lib) {
-      const slot = parseSlotId(overId);
+      const slot = dropSlot;
       const newId = genId();
       setTasks(prev => [...prev, {
         id: newId, content: lib.content, originalText: lib.originalText,
@@ -1275,7 +1295,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     }
 
     // Dropped onto a time slot: schedule (or reschedule) + auto-sync.
-    const slot = parseSlotId(overId);
+    const slot = dropSlot;
     if (!slot) return;
     const { dayId, time } = slot;
     if (task.startTime === time && (task.isDaily || task.dayId === dayId)) return; // no-op
@@ -1290,7 +1310,7 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
       const dayIndex = DAYS.findIndex(d => d.id === dayId);
       syncTaskToCalendar(realAid, task.content, dayIndex, time, duration, task.calendarId);
     }
-  }, [libraryTasks, tasks, setTasks, removeSyncedEvents, syncTaskToCalendar, busyEventsByDay, weekStart]);
+  }, [libraryTasks, tasks, setTasks, removeSyncedEvents, syncTaskToCalendar, busyEventsByDay, scheduledTasksByDay, weekStart]);
 
   const activeTask = useMemo(() => {
     if (!activeId) return null;

@@ -43,6 +43,19 @@ export function parseSlotId(id: string): { dayId: string; time: string } | null 
   return { dayId, time };
 }
 
+/**
+ * Where something placed in a half-hour slot should actually start: if an
+ * earlier event ends partway into the slot (say 19:40, in the 19:30 slot),
+ * start right where it ends instead of at the slot's round time — otherwise
+ * the two overlap and get squeezed side-by-side. `endMinutes` are the end
+ * times (minutes since midnight) of the day's other events.
+ */
+export function startAfterEndsIn(slotTime: string, endMinutes: number[]): string {
+  const slotStart = timeToMinutes(slotTime);
+  const ends = endMinutes.filter(end => end > slotStart && end < slotStart + SLOT_MINUTES);
+  return ends.length ? minutesToTime(Math.max(...ends)) : slotTime;
+}
+
 export const BANK_ID = 'bank';
 
 /** All slot start times ("HH:mm") for one day, at SLOT_MINUTES granularity. */
