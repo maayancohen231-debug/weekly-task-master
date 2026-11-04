@@ -28,22 +28,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   if (!clientSecret) return res.status(500).json({ error: 'Server not configured: missing GOOGLE_CLIENT_SECRET' });
 
-  const params = new URLSearchParams({
-    code,
-    client_id: GOOGLE_CLIENT_ID,
-    client_secret: clientSecret,
-    // For initCodeClient's popup ux_mode, Google requires redirect_uri to
-    // exactly match the origin of the page that opened the consent popup.
-    redirect_uri: origin,
-    grant_type: 'authorization_code',
-  });
+  // Codes from initCodeClient's popup ux_mode are redeemed with the special
+  // redirect_uri 'postmessage'; the page origin is kept as a fallback in case
+  // Google rejects that with redirect_uri_mismatch.
+  const exchange = (redirectUri: string) =>
+    fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      }),
+    });
 
-  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: params,
-  });
-  const data = await tokenRes.json();
+  let tokenRes = await exchange('postmessage');
+  let data = await tokenRes.json();
+  if (!tokenRes.ok && data.error === 'redirect_uri_mismatch') {
+    tokenRes = await exchange(origin);
+    data = await tokenRes.json();
+  }
 
   if (!tokenRes.ok) {
     return res.status(tokenRes.status).json({ error: data.error_description ?? data.error ?? 'Token exchange failed' });
