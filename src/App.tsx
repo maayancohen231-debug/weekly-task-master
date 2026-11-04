@@ -10,7 +10,7 @@ import { AcademicBoard } from '@/components/AcademicBoard';
 import { forceSeedData } from '@/lib/seed';
 import {
   isConfigured, isTokenValid, requestToken,
-  refreshAccessToken, getStoredRefreshToken, clearAllTokens,
+  refreshAccessToken, getStoredRefreshToken, clearAllTokens, connectPersistent,
   loadSyncedEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, moveCalendarEvent,
   saveSyncedEvent, fetchWeekEvents, fetchCalendars, matchCalendarName, resolveLearnedOrRuleMatch,
   type SyncedEventInfo, type GCalBusyEvent, type GCalCalendar,
@@ -295,16 +295,13 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
     return () => clearInterval(id);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Calling requestToken() directly — not connectPersistent() — is
-  // deliberate: the persistent code-flow (needed for "stay connected
-  // forever") depends on a server piece that isn't set up yet, and every
-  // attempt at gracefully layering it on top of Connect Calendar has made
-  // the button less reliable, not more. This is exactly the plain flow that
-  // was already working earlier. Once GOOGLE_CLIENT_SECRET is actually set
-  // and verified, this can switch back to connectPersistent().
+  // connectPersistent() gets a refresh token via the server (GOOGLE_CLIENT_SECRET
+  // is set on Vercel as of 2026-11-04), so the connection survives access-token
+  // expiry; it falls back to the plain requestToken flow if the server isn't
+  // configured.
   const handleConnectCalendar = async () => {
     try {
-      await requestToken('consent');
+      await connectPersistent();
       setGcalConnected(true);
       setGcalSyncError(null);
     } catch (err: any) {
