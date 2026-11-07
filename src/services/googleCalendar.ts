@@ -289,6 +289,59 @@ export async function connectPersistent(): Promise<GCalToken> {
   return storeToken({ access_token: data.access_token, expires_in: data.expires_in ?? 3600 });
 }
 
+export const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+const GMAIL_FLAG_KEY = 'gmail_connected';
+
+export function isGmailConnected(): boolean {
+  return localStorage.getItem(GMAIL_FLAG_KEY) === '1' && (isTokenValid() || !!getStoredRefreshToken());
+}
+
+export function markGmailDisconnected(): void {
+  localStorage.removeItem(GMAIL_FLAG_KEY);
+}
+
+/**
+ * Adds read-only Gmail access on top of Calendar (incremental consent), for
+ * the morning brief. One popup; the new refresh token covers both scopes, so
+ * Calendar keeps working exactly as before. Read-only: nothing is ever sent.
+ */
+export async function connectGmail(): Promise<GCalToken> {
+  if (!(await checkPersistentConfigured())) throw new Error('Server not configured for persistent Google access');
+  await loadGISScript();
+  const google = (window as any).google;
+  if (!google?.accounts?.oauth2) throw new Error('Google Identity Services not available');
+
+  const code = await new Promise<string>((resolve, reject) => {
+    const client = google.accounts.oauth2.initCodeClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: `${SCOPE} ${GMAIL_SCOPE}`,
+      include_granted_scopes: true,
+      ux_mode: 'popup',
+      callback: (resp: { code?: string; error?: string; scope?: string }) => {
+        if (resp.error || !resp.code) return reject(new Error(resp.error ?? 'OAuth failed'));
+        if (resp.scope && !resp.scope.includes(GMAIL_SCOPE)) return reject(new Error('Gmail access was not granted'));
+        resolve(resp.code);
+      },
+      error_callback: (err: { type?: string; message?: string }) => reject(new Error(err?.message ?? err?.type ?? 'Popup closed')),
+    });
+    client.requestCode();
+  });
+
+  const res = await fetch('/api/google/exchange', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, origin: window.location.origin }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? 'Token exchange failed');
+  }
+  const data = await res.json();
+  if (data.refresh_token) storeRefreshToken(data.refresh_token);
+  localStorage.setItem(GMAIL_FLAG_KEY, '1');
+  return storeToken({ access_token: data.access_token, expires_in: data.expires_in ?? 3600 });
+}
+
 /** Silently mints a fresh access token from the stored refresh token — no popup, no third-party-cookie dependency. */
 export async function refreshAccessToken(): Promise<GCalToken> {
   const refreshToken = getStoredRefreshToken();

@@ -5,7 +5,7 @@ import {
   defaultDropAnimationSideEffects,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar, AlertTriangle, X, Eraser, Tags } from 'lucide-react';
+import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar, AlertTriangle, X, Eraser, Tags, Sun } from 'lucide-react';
 import { AcademicBoard } from '@/components/AcademicBoard';
 import { forceSeedData } from '@/lib/seed';
 import {
@@ -25,6 +25,7 @@ import { WeeklyGoals, type WeeklyGoal } from '@/components/WeeklyGoals';
 import { DailyGoalsBar } from '@/components/DailyGoalsBar';
 import { DayListView } from '@/components/DayListView';
 import { CalendarKeywordsModal } from '@/components/CalendarKeywordsModal';
+import { MorningBrief, BRIEF_SHOWN_KEY, localDayKey } from '@/components/MorningBrief';
 import { translateText } from '@/lib/translate';
 import { parseQuickEventText } from '@/lib/parseQuickEvent';
 import { parseSlotId, BANK_ID, startAfterEndsIn, timeToMinutes } from '@/lib/calendar-grid';
@@ -223,6 +224,17 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
   }, [plannerView]);
   const [cleanupSelection, setCleanupSelection] = useState<Set<string> | null>(null);
   const [showCalendarKeywords, setShowCalendarKeywords] = useState(false);
+  // Morning brief opens by itself on the first visit of each day (from 05:00),
+  // and from the header button any time after that.
+  const [showBrief, setShowBrief] = useState(() => {
+    try {
+      if (new Date().getHours() < 5) return false;
+      return localStorage.getItem(BRIEF_SHOWN_KEY) !== localDayKey();
+    } catch { return false; }
+  });
+  useEffect(() => {
+    if (showBrief) { try { localStorage.setItem(BRIEF_SHOWN_KEY, localDayKey()); } catch { /* ignore */ } }
+  }, [showBrief]);
   const [selectedDayId, setSelectedDayId] = useState(() => todayDayId ?? DAY_IDS[0]);
   const selectedDayIndex = (DAY_IDS as string[]).indexOf(selectedDayId);
 
@@ -1378,6 +1390,14 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
 
           <div className="flex items-center gap-2 shrink-0">
             <button
+              onClick={() => setShowBrief(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/30 rounded-xl transition-base"
+              title="סיכום בוקר: משימות פתוחות, מיילים שמחכים לתשובה ופגישות שלא ביומן"
+            >
+              <Sun size={14} />
+              <span>סיכום בוקר</span>
+            </button>
+            <button
               onClick={() => { if (confirm('Load all sample data? This will overwrite current data.')) forceSeedData(); }}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-base"
               title="Load Sample Data"
@@ -1656,6 +1676,14 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
             </div>
           </div>
         </div>
+      )}
+
+      {showBrief && (
+        <MorningBrief
+          tasksByWeek={storageData.tasksByWeek}
+          onClose={() => setShowBrief(false)}
+          onGoogleConnected={() => { setGcalConnected(true); setGcalSyncError(null); }}
+        />
       )}
 
       {showCalendarKeywords && (
