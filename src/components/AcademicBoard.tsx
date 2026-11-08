@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, ArrowLeft, CalendarDays, GraduationCap } from 'lucide-react';
+import { UniversityStudies } from '@/components/UniversityStudies';
 
 const STORAGE_KEY = 'academic-board-data';
 
@@ -178,12 +179,17 @@ export function AcademicBoard({ onBack }: Props) {
           </button>
           <div className="flex items-center gap-2">
             <GraduationCap size={20} className="text-primary" />
-            <h1 className="text-lg font-bold text-foreground tracking-tight">Academic Board</h1>
+            <h1 className="text-lg font-bold text-foreground tracking-tight">University Studies</h1>
           </div>
         </div>
       </header>
 
       <main className="flex-1 p-6 flex flex-col gap-6">
+
+        {/* ── University Studies (semester overview) ───────────── */}
+        <UniversityStudies />
+
+        <h2 className="text-sm font-bold text-foreground px-1 pt-2">Progress Tracker</h2>
 
         {/* ── Course Table ─────────────────────────────────────── */}
         <div className="bg-card rounded-2xl shadow-card overflow-hidden">
