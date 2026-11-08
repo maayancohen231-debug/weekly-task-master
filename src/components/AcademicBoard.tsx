@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, ArrowLeft, CalendarDays, GraduationCap } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, CalendarDays, GraduationCap, ChevronDown, ChevronUp } from 'lucide-react';
 import { UniversityStudies } from '@/components/UniversityStudies';
 
 const STORAGE_KEY = 'academic-board-data';
@@ -93,6 +93,11 @@ export function AcademicBoard({ onBack }: Props) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }, [data]);
 
+  // The old free-form tracker stays available, folded away unless it was used.
+  const [showTracker, setShowTracker] = useState(
+    () => JSON.stringify({ ...data, cells: Object.fromEntries(Object.entries(data.cells).filter(([, v]) => v !== 'empty')) }) !== JSON.stringify(DEFAULT_DATA),
+  );
+
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -164,32 +169,37 @@ export function AcademicBoard({ onBack }: Props) {
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans flex flex-col">
-      {/* Accent strip */}
-      <div className="h-1 w-full shrink-0" style={{ background: 'hsl(340 60% 80%)' }} />
-
       {/* Header */}
-      <header className="bg-card shadow-card px-6 py-3 shrink-0">
-        <div className="flex items-center gap-4">
+      <header className="sticky top-0 z-20 bg-card/85 backdrop-blur-md border-b border-border/50 shadow-sm-custom px-4 sm:px-6 py-3 shrink-0">
+        <div className="max-w-6xl mx-auto flex items-center gap-4">
           <button
             onClick={onBack}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-base text-sm"
+            className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-base text-sm"
           >
             <ArrowLeft size={16} />
             <span>Back</span>
           </button>
           <div className="flex items-center gap-2">
             <GraduationCap size={20} className="text-primary" />
-            <h1 className="text-lg font-bold text-foreground tracking-tight">University Studies</h1>
+            <h1 className="text-lg font-semibold text-foreground tracking-tight">University Studies</h1>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 p-6 flex flex-col gap-6">
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6">
 
         {/* ── University Studies (semester overview) ───────────── */}
         <UniversityStudies />
 
-        <h2 className="text-sm font-bold text-foreground px-1 pt-2">Progress Tracker</h2>
+        <button
+          onClick={() => setShowTracker(v => !v)}
+          className="self-start inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-base px-1 pt-2"
+        >
+          {showTracker ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          {showTracker ? 'Hide my own tracker' : 'Show my own tracker (free-form table and events)'}
+        </button>
+
+        {showTracker && (<>
 
         {/* ── Course Table ─────────────────────────────────────── */}
         <div className="bg-card rounded-2xl shadow-card overflow-hidden">
@@ -395,6 +405,7 @@ export function AcademicBoard({ onBack }: Props) {
             ))}
           </div>
         </div>
+        </>)}
 
       </main>
     </div>

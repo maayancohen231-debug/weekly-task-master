@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
-  AlertTriangle, BookOpen, CalendarClock, Check, ChevronDown, ChevronUp,
-  Clock, Eye, FileText, GraduationCap, Plus, Trash2, Users,
+  AlertTriangle, BookOpen, CalendarClock, CalendarDays, Check, ChevronDown, ChevronUp,
+  Circle, Clock, Eye, FileText, GraduationCap, ListChecks, Plus, Trash2, Video,
 } from 'lucide-react';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -231,131 +231,145 @@ function genId(): string {
   return Math.random().toString(36).slice(2, 11);
 }
 
-const isCheckable = (k: ItemKind) => k === 'assignment' || k === 'exam' || k === 'session';
+// ── UI helpers ──────────────────────────────────────────────────────────────
+
 const isDeliverable = (k: ItemKind) => k === 'assignment' || k === 'exam';
 
-// ── Small UI pieces ─────────────────────────────────────────────────────────
-
-function CourseChip({ course }: { course: CourseKey }) {
-  const c = COURSES[course];
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-semibold whitespace-nowrap"
-      style={{ background: `hsl(${c.color} / 0.12)`, color: `hsl(${c.color})` }}
-    >
-      <span className="w-1.5 h-1.5 rounded-full" style={{ background: `hsl(${c.color})` }} />
-      {c.short}
-    </span>
-  );
+function kindOrder(k: ItemKind): number {
+  return k === 'exam' ? 0 : k === 'assignment' ? 1 : k === 'session' ? 2 : 3;
 }
 
-function KindIcon({ kind }: { kind: ItemKind }) {
-  if (kind === 'assignment') return <FileText size={14} className="text-primary" />;
-  if (kind === 'exam') return <AlertTriangle size={14} className="text-[hsl(var(--status-red))]" />;
-  if (kind === 'milestone') return <GraduationCap size={14} className="text-muted-foreground" />;
-  return <Users size={14} className="text-muted-foreground/60" />;
+function weekStartISO(iso: string): string {
+  const d = parseISO(iso);
+  d.setDate(d.getDate() - d.getDay());
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function Section({ icon, title, subtitle, right, children }: { icon: ReactNode; title: string; subtitle?: string; right?: ReactNode; children: ReactNode }) {
+function weekLabel(weekISO: string, thisWeek: string): string {
+  const diff = Math.round((parseISO(weekISO).getTime() - parseISO(thisWeek).getTime()) / (7 * 86400000));
+  if (diff === 0) return 'This week';
+  if (diff === 1) return 'Next week';
+  const d = parseISO(weekISO);
+  return `Week of ${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`;
+}
+
+function itemTitle(i: TimelineItem): string {
+  if (i.kind === 'session') return i.custom ? i.label : `${COURSES[i.course].short} session`;
+  if (i.kind === 'assignment' && !i.custom) return `${COURSES[i.course].short} · ${i.label}`;
+  return i.label;
+}
+
+function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <div className={`bg-card rounded-3xl shadow-card border border-border/40 ${className}`}>{children}</div>;
+}
+
+function CardHeader({ icon, title, subtitle, right }: { icon: ReactNode; title: string; subtitle?: string; right?: ReactNode }) {
   return (
-    <div className="bg-card rounded-2xl shadow-card p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-        <div className="flex items-center gap-2.5">
-          <span className="w-8 h-8 rounded-xl bg-muted/60 flex items-center justify-center">{icon}</span>
-          <div>
-            <h2 className="text-sm font-bold text-foreground leading-tight">{title}</h2>
-            {subtitle && <p className="text-[11px] text-muted-foreground">{subtitle}</p>}
-          </div>
+    <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+      <div className="flex items-center gap-3">
+        <span className="w-10 h-10 rounded-2xl bg-accent text-primary flex items-center justify-center shrink-0">{icon}</span>
+        <div>
+          <h2 className="text-base font-semibold text-foreground leading-tight">{title}</h2>
+          {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
         </div>
-        {right}
       </div>
-      {children}
+      {right}
     </div>
   );
 }
 
-function ProgressBar({ value, total, color }: { value: number; total: number; color: string }) {
+function Bar({ value, total }: { value: number; total: number }) {
   const pct = total ? Math.round((value / total) * 100) : 0;
   return (
-    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-      <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: color }} />
+    <div className="h-2 rounded-full bg-muted overflow-hidden">
+      <div
+        className="h-full rounded-full transition-all duration-700"
+        style={{ width: `${pct}%`, background: 'linear-gradient(90deg, hsl(var(--primary) / 0.75), hsl(var(--primary)))' }}
+      />
     </div>
   );
 }
 
-function StatTile({ icon, label, value, total, color, hint }: { icon: ReactNode; label: string; value: number; total?: number; color: string; hint?: string }) {
+function Ring({ value, total, size = 64 }: { value: number; total: number; size?: number }) {
+  const r = (size - 8) / 2;
+  const c = 2 * Math.PI * r;
+  const pct = total ? value / total : 0;
   return (
-    <div className="flex-1 min-w-[150px] rounded-2xl bg-card/80 border border-border/60 px-4 py-3">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground mb-1">
-        {icon}{label}
+    <svg width={size} height={size} className="-rotate-90 shrink-0">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="hsl(var(--muted))" strokeWidth={7} />
+      <circle
+        cx={size / 2} cy={size / 2} r={r} fill="none" stroke="hsl(var(--primary))" strokeWidth={7}
+        strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - pct)}
+        style={{ transition: 'stroke-dashoffset 700ms cubic-bezier(0.2,0,0,1)' }}
+      />
+    </svg>
+  );
+}
+
+function StatCard({ icon, label, value, total, hint }: { icon: ReactNode; label: string; value: number; total: number; hint?: string }) {
+  return (
+    <div className="flex items-center gap-4 rounded-2xl bg-card border border-border/50 shadow-sm-custom px-4 py-3.5">
+      <div className="relative">
+        <Ring value={value} total={total} />
+        <span className="absolute inset-0 flex items-center justify-center text-primary">{icon}</span>
       </div>
-      <div className="flex items-baseline gap-1 mb-2">
-        <span className="text-2xl font-bold tabular-nums text-foreground">{value}</span>
-        {total !== undefined && <span className="text-sm text-muted-foreground tabular-nums">/ {total}</span>}
-        {hint && <span className="text-[11px] text-muted-foreground ml-1">{hint}</span>}
+      <div className="min-w-0">
+        <div className="text-xs text-muted-foreground">{label}</div>
+        <div className="flex items-baseline gap-1 mt-0.5">
+          <span className="text-2xl font-semibold tabular-nums text-foreground">{value}</span>
+          <span className="text-sm text-muted-foreground tabular-nums">of {total}</span>
+        </div>
+        {hint && <div className="text-[11px] text-muted-foreground mt-0.5">{hint}</div>}
       </div>
-      {total !== undefined && <ProgressBar value={value} total={total} color={color} />}
     </div>
   );
 }
 
-function CourseTable({ rows, title, progress }: { rows: CourseRow[]; title: string; progress?: (k: CourseKey) => { done: number; total: number; watched: number; sessions: number } }) {
+/** The one big, labelled toggle used for both sessions and assignments. */
+function DoneToggle({ item, done, onToggle, compact = false }: { item: TimelineItem; done: boolean; onToggle: () => void; compact?: boolean }) {
+  const isSession = item.kind === 'session';
+  const onText = isSession ? 'Watched' : 'Submitted';
+  const offText = isSession ? 'Mark watched' : 'Mark submitted';
   return (
-    <div>
-      <h3 className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground/70 mb-2">{title}</h3>
-      <div className="space-y-1.5">
-        {rows.map(r => {
-          const color = r.course ? COURSES[r.course].color : '220 10% 60%';
-          const p = r.course && progress ? progress(r.course) : null;
-          return (
-            <div
-              key={r.code}
-              className="relative overflow-hidden px-3.5 py-2.5 rounded-xl bg-muted/30 border-l-[3px]"
-              style={{ borderLeftColor: `hsl(${color})` }}
-            >
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <span className="text-sm font-semibold text-foreground flex-1 min-w-[160px]">{r.name}</span>
-                <span className="text-[11px] font-mono text-muted-foreground tabular-nums">{r.code}</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><Clock size={11} />{r.meeting}</span>
-                {r.warn && (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[hsl(var(--status-yellow))] bg-[hsl(var(--status-yellow-bg))] px-2 py-0.5 rounded-lg">
-                    <AlertTriangle size={11} /> {r.warn}
-                  </span>
-                )}
-                {p && (
-                  <span className="ml-auto flex items-center gap-3 text-[11px] text-muted-foreground tabular-nums">
-                    <span className="inline-flex items-center gap-1"><FileText size={11} />{p.done}/{p.total}</span>
-                    <span className="inline-flex items-center gap-1"><Eye size={11} />{p.watched}/{p.sessions}</span>
-                  </span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <button
+      onClick={onToggle}
+      aria-pressed={done}
+      title={done ? `Undo "${onText}"` : offText}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-xl text-xs transition-base shrink-0 active:scale-[0.97]
+        ${compact ? 'h-8 px-2.5' : 'h-9 px-3.5 min-w-[132px]'}
+        ${done
+          ? 'bg-primary text-primary-foreground shadow-sm-custom hover:opacity-90'
+          : 'bg-card text-foreground border border-border hover:border-primary/50 hover:bg-accent/50'}`}
+    >
+      {done ? <Check size={14} strokeWidth={2.5} /> : isSession ? <Eye size={14} /> : <Circle size={14} />}
+      <span>{done ? onText : offText}</span>
+    </button>
   );
 }
 
 // ── Main component ──────────────────────────────────────────────────────────
 
+type Tab = 'timeline' | 'sessions' | 'admin';
 type Filter = 'all' | 'assignment' | 'session';
+type NewKind = 'session' | 'assignment';
 
 export function UniversityStudies() {
   const [state, setState] = useState<StudiesState>(loadState);
+  const [tab, setTab] = useState<Tab>('timeline');
   const [filter, setFilter] = useState<Filter>('all');
   const [showPast, setShowPast] = useState(false);
-  const [newDate, setNewDate] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [newDate, setNewDate] = useState(todayISO());
   const [newLabel, setNewLabel] = useState('');
-  const [newCourse, setNewCourse] = useState<CourseKey>('other');
+  const [newCourse, setNewCourse] = useState<CourseKey>('psy');
+  const [newKind, setNewKind] = useState<NewKind>('session');
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* ignore */ }
   }, [state]);
 
   const today = todayISO();
+  const thisWeek = weekStartISO(today);
 
   const allItems = useMemo(
     () => [...SEED_ITEMS, ...state.custom]
@@ -366,43 +380,14 @@ export function UniversityStudies() {
 
   const assignments = allItems.filter(i => isDeliverable(i.kind));
   const sessions = allItems.filter(i => i.kind === 'session');
-  const doneCount = assignments.filter(i => state.itemDone[i.id]).length;
-  const watchedCount = sessions.filter(i => state.itemDone[i.id]).length;
+  const isDone = (i: TimelineItem) => !!state.itemDone[i.id];
+  const doneCount = assignments.filter(isDone).length;
+  const watchedCount = sessions.filter(isDone).length;
   const sessionsSoFar = sessions.filter(i => i.date <= today).length;
-  const nextDeadline = assignments.find(i => i.date >= today && !state.itemDone[i.id]);
-  const overdue = assignments.filter(i => i.date < today && !state.itemDone[i.id]);
-  const toWatch = sessions.filter(i => i.date < today && !state.itemDone[i.id]);
+  const nextDeadline = assignments.find(i => i.date >= today && !isDone(i));
+  const nextSession = sessions.find(i => i.date >= today);
+  const catchUp = allItems.filter(i => i.date < today && (isDeliverable(i.kind) || i.kind === 'session') && !isDone(i));
   const urgentOpen = URGENT.filter(u => !state.urgentDone[u.id]).length;
-
-  const courseProgress = (k: CourseKey) => {
-    const a = assignments.filter(i => i.course === k);
-    const s = sessions.filter(i => i.course === k);
-    return {
-      done: a.filter(i => state.itemDone[i.id]).length, total: a.length,
-      watched: s.filter(i => state.itemDone[i.id]).length, sessions: s.length,
-    };
-  };
-
-  const visible = allItems.filter(i => {
-    if (filter === 'assignment' && !(isDeliverable(i.kind) || i.kind === 'milestone')) return false;
-    if (filter === 'session' && i.kind !== 'session') return false;
-    if (!showPast && i.date < today) {
-      // keep overdue assignments and sessions not yet watched visible
-      return isCheckable(i.kind) && !state.itemDone[i.id];
-    }
-    return true;
-  });
-
-  const grouped = useMemo(() => {
-    const map = new Map<string, TimelineItem[]>();
-    visible.forEach(i => {
-      const d = parseISO(i.date);
-      const key = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(i);
-    });
-    return [...map.entries()];
-  }, [visible]);
 
   const toggleUrgent = (id: string) =>
     setState(s => ({ ...s, urgentDone: { ...s.urgentDone, [id]: !s.urgentDone[id] } }));
@@ -414,279 +399,267 @@ export function UniversityStudies() {
       : { ...s, hidden: { ...s.hidden, [item.id]: true } });
   const restoreHidden = () => setState(s => ({ ...s, hidden: {} }));
 
-  const addCustom = () => {
-    if (!newDate || !newLabel.trim()) return;
+  const addCustom = (opts?: { course?: CourseKey; kind?: NewKind; date?: string; markDone?: boolean }) => {
+    const kind = opts?.kind ?? newKind;
+    const course = opts?.course ?? newCourse;
+    const date = opts?.date ?? newDate;
+    const label = newLabel.trim() || (kind === 'session' ? `${COURSES[course].short} session` : '');
+    if (!date || !label) return;
     const item: TimelineItem = {
-      id: `custom_${genId()}`, date: newDate, kind: 'assignment', course: newCourse,
-      label: newLabel.trim(), custom: true,
+      id: `custom_${genId()}`, date, kind, course, label, custom: true,
+      time: kind === 'session' ? SESSION_TIME[course] : undefined,
     };
-    setState(s => ({ ...s, custom: [...s.custom, item] }));
+    setState(s => ({
+      ...s,
+      custom: [...s.custom, item],
+      itemDone: opts?.markDone ? { ...s.itemDone, [item.id]: true } : s.itemDone,
+    }));
     setNewLabel('');
+    setAdding(false);
   };
+
+  // Timeline: catch-up first, then by week.
+  const visible = allItems.filter(i => {
+    if (filter === 'assignment' && !(isDeliverable(i.kind) || i.kind === 'milestone')) return false;
+    if (filter === 'session' && i.kind !== 'session') return false;
+    if (i.date < today) return showPast;
+    return true;
+  });
+  const catchUpVisible = catchUp.filter(i =>
+    filter === 'all' || (filter === 'session' ? i.kind === 'session' : i.kind !== 'session'));
+
+  const weeks = useMemo(() => {
+    const map = new Map<string, TimelineItem[]>();
+    visible.forEach(i => {
+      const k = weekStartISO(i.date);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(i);
+    });
+    return [...map.entries()];
+  }, [visible]);
 
   const hiddenCount = Object.values(state.hidden).filter(Boolean).length;
   const nextDays = nextDeadline ? daysUntil(nextDeadline.date) : null;
+  const sessionCourses = (Object.keys(COURSES) as CourseKey[]).filter(k => sessions.some(s => s.course === k));
+
+  const renderRow = (item: TimelineItem) => {
+    const done = isDone(item);
+    const n = daysUntil(item.date);
+    const isToday = n === 0;
+    const d = parseISO(item.date);
+    const checkable = item.kind !== 'milestone';
+    const late = n < 0 && !done && checkable;
+    return (
+      <div
+        key={item.id}
+        className={`group flex flex-wrap sm:flex-nowrap items-center gap-x-4 gap-y-2 px-3 sm:px-4 py-3 rounded-2xl border transition-base
+          ${isToday ? 'bg-accent/50 border-primary/25' : 'bg-card border-border/50 hover:shadow-sm-custom hover:border-border'}`}
+      >
+        <div className={`w-12 h-12 rounded-2xl flex flex-col items-center justify-center shrink-0 ${isToday ? 'bg-primary text-primary-foreground' : 'bg-muted/60 text-foreground'}`}>
+          <span className="text-base font-semibold leading-none tabular-nums">{d.getDate()}</span>
+          <span className={`text-[10px] mt-0.5 ${isToday ? 'opacity-80' : 'text-muted-foreground'}`}>{DAYS[d.getDay()]}</span>
+        </div>
+        <div className="flex-1 min-w-[150px]">
+          <div className="flex items-center gap-2">
+            {item.kind === 'session' ? <Video size={14} className="text-muted-foreground shrink-0" />
+              : item.kind === 'exam' ? <AlertTriangle size={14} className="text-primary shrink-0" />
+              : item.kind === 'milestone' ? <GraduationCap size={14} className="text-muted-foreground shrink-0" />
+              : <FileText size={14} className="text-muted-foreground shrink-0" />}
+            <span dir="auto" className={`text-sm text-foreground ${item.kind === 'exam' ? 'font-semibold' : ''} ${done ? 'text-muted-foreground line-through decoration-muted-foreground/40' : ''}`}>
+              {itemTitle(item)}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
+            <span>{COURSES[item.course].name}</span>
+            {item.time && <span className="inline-flex items-center gap-1 tabular-nums"><Clock size={11} />{item.time}</span>}
+            {isToday ? <span className="text-primary">Today</span>
+              : late ? <span className="text-[hsl(var(--status-red))]">{item.kind === 'session' ? 'Not watched yet' : 'Overdue'} · {relLabel(n)}</span>
+              : n > 0 && n <= 7 && !done ? <span>{relLabel(n)}</span> : null}
+          </div>
+          {item.note && <p className="text-xs text-muted-foreground mt-1.5 pl-3 border-l-2 border-primary/30">{item.note}</p>}
+        </div>
+        <div className="flex items-center gap-1.5 ml-auto">
+          {checkable && <DoneToggle item={item} done={done} onToggle={() => toggleItem(item.id)} />}
+          <button
+            onClick={() => removeItem(item)}
+            title="Remove from the list"
+            className="p-2 rounded-xl text-muted-foreground/40 hover:text-destructive hover:bg-muted/60 transition-base [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const addForm = (
+    <div className="rounded-2xl bg-muted/40 border border-border/50 p-3 mb-5 flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-1 bg-card rounded-xl p-1 border border-border/50">
+        {(['session', 'assignment'] as NewKind[]).map(k => (
+          <button
+            key={k}
+            onClick={() => setNewKind(k)}
+            className={`px-3 h-8 text-xs rounded-lg transition-base ${newKind === k ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            {k === 'session' ? 'Session' : 'Assignment'}
+          </button>
+        ))}
+      </div>
+      <input
+        type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
+        className="h-10 px-3 text-sm bg-card rounded-xl border border-border/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+      />
+      <select
+        value={newCourse} onChange={e => setNewCourse(e.target.value as CourseKey)}
+        className="h-10 px-3 text-sm bg-card rounded-xl border border-border/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+      >
+        {(Object.keys(COURSES) as CourseKey[]).map(k => <option key={k} value={k}>{COURSES[k].short}</option>)}
+      </select>
+      <input
+        type="text" value={newLabel} onChange={e => setNewLabel(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && addCustom()}
+        placeholder={newKind === 'session' ? 'Name (optional), e.g. Recorded lecture 3' : 'e.g. Assignment 13'}
+        dir="auto"
+        className="flex-1 min-w-[180px] h-10 px-3 text-sm bg-card rounded-xl border border-border/50 focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/50"
+      />
+      <button onClick={() => addCustom()} className="h-10 px-4 text-sm bg-primary text-primary-foreground rounded-xl hover:opacity-90 transition-base inline-flex items-center gap-1.5">
+        <Plus size={15} /> Add
+      </button>
+      {newKind === 'session' && (
+        <button onClick={() => addCustom({ markDone: true })} className="h-10 px-4 text-sm bg-card border border-border rounded-xl hover:border-primary/50 transition-base inline-flex items-center gap-1.5">
+          <Check size={15} /> Add as watched
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <div className="flex flex-col gap-6">
-      {/* ── Overview ─────────────────────────────────────────────── */}
-      <div
-        className="rounded-2xl shadow-card p-5 sm:p-6"
-        style={{ background: 'linear-gradient(135deg, hsl(var(--accent)) 0%, hsl(var(--card)) 70%)' }}
-      >
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
-          <div className="flex items-center gap-3">
-            <span className="w-11 h-11 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-sm">
-              <GraduationCap size={22} />
+      {/* ── Hero ─────────────────────────────────────────────────── */}
+      <Card className="relative overflow-hidden p-5 sm:p-7">
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{ background: 'radial-gradient(circle at 0% 0%, hsl(var(--primary) / 0.10), transparent 55%), radial-gradient(circle at 100% 100%, hsl(var(--primary) / 0.06), transparent 50%)' }}
+        />
+        <div className="relative flex flex-wrap items-start justify-between gap-5 mb-6">
+          <div className="flex items-center gap-4">
+            <span className="w-14 h-14 rounded-2xl text-primary-foreground flex items-center justify-center shadow-card" style={{ background: 'linear-gradient(135deg, hsl(var(--primary) / 0.85), hsl(var(--primary)))' }}>
+              <GraduationCap size={26} />
             </span>
             <div>
-              <h2 className="text-lg font-bold text-foreground tracking-tight">{SEMESTER_LABEL}</h2>
-              <p className="text-xs text-muted-foreground">Open University · summary as of {AS_OF} · semester ends 31.1.2027</p>
+              <h2 className="text-2xl font-semibold text-foreground tracking-tight">{SEMESTER_LABEL}</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">Open University · ends 31 January 2027 · data as of {AS_OF}</p>
             </div>
           </div>
           {nextDeadline && nextDays !== null && (
-            <div className="flex items-center gap-3 rounded-2xl bg-card border border-border/60 px-4 py-2.5 shadow-sm">
-              <div className="text-center">
-                <div className="text-xl font-bold text-primary tabular-nums leading-none">{nextDays}</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">{nextDays === 1 ? 'day' : 'days'}</div>
+            <div className="flex items-center gap-4 rounded-2xl bg-card/90 backdrop-blur border border-border/60 shadow-sm-custom pl-4 pr-5 py-3">
+              <div className="w-12 h-12 rounded-xl bg-accent text-primary flex flex-col items-center justify-center">
+                {nextDays === 0 ? <span className="text-xs leading-none">Today</span> : (<>
+                  <span className="text-lg font-semibold leading-none tabular-nums">{nextDays}</span>
+                  <span className="text-[10px] mt-0.5">{nextDays === 1 ? 'day' : 'days'}</span>
+                </>)}
               </div>
-              <div className="w-px self-stretch bg-border" />
               <div>
-                <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Next deadline</div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <CourseChip course={nextDeadline.course} />
-                  <span className="text-sm font-semibold text-foreground" dir="auto">{nextDeadline.label}</span>
-                  <span className="text-xs text-muted-foreground tabular-nums">{fmtDM(nextDeadline.date)}</span>
-                </div>
+                <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Next deadline</div>
+                <div className="text-sm text-foreground mt-0.5" dir="auto">{itemTitle(nextDeadline)}</div>
+                <div className="text-xs text-muted-foreground">{fmtDM(nextDeadline.date)} · {DAYS[parseISO(nextDeadline.date).getDay()]}</div>
               </div>
             </div>
           )}
         </div>
-        <div className="flex flex-wrap gap-3">
-          <StatTile
-            icon={<FileText size={12} />} label="Assignments submitted"
-            value={doneCount} total={assignments.length} color="hsl(var(--status-green))"
-          />
-          <StatTile
-            icon={<Eye size={12} />} label="Sessions watched"
-            value={watchedCount} total={sessions.length} color="hsl(var(--task-blue))"
-            hint={sessionsSoFar ? `${sessionsSoFar} held so far` : undefined}
-          />
-          <StatTile
-            icon={<AlertTriangle size={12} />} label="Urgent items handled"
-            value={URGENT.length - urgentOpen} total={URGENT.length} color="hsl(var(--status-yellow))"
-          />
-          {(overdue.length > 0 || toWatch.length > 0) && (
-            <div className="flex-1 min-w-[150px] rounded-2xl bg-[hsl(var(--status-red-bg))] px-4 py-3 text-[hsl(var(--status-red))]">
-              <div className="text-[11px] font-medium mb-1">Catch up</div>
-              {overdue.length > 0 && <div className="text-sm font-bold">{overdue.length} overdue assignment{overdue.length === 1 ? '' : 's'}</div>}
-              {toWatch.length > 0 && <div className="text-sm font-bold">{toWatch.length} session{toWatch.length === 1 ? '' : 's'} to watch</div>}
-            </div>
-          )}
+        <div className="relative grid gap-3 grid-cols-1 sm:grid-cols-3">
+          <StatCard icon={<Video size={18} />} label="Sessions watched" value={watchedCount} total={sessions.length}
+            hint={nextSession ? `Next: ${COURSES[nextSession.course].short}, ${fmtDM(nextSession.date)}` : `${sessionsSoFar} held so far`} />
+          <StatCard icon={<FileText size={18} />} label="Assignments submitted" value={doneCount} total={assignments.length} />
+          <StatCard icon={<ListChecks size={18} />} label="Admin items handled" value={URGENT.length - urgentOpen} total={URGENT.length}
+            hint={urgentOpen ? `${urgentOpen} still open` : 'All done'} />
         </div>
+      </Card>
+
+      {/* ── Tabs ─────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex items-center gap-1 bg-card rounded-2xl p-1.5 shadow-sm-custom border border-border/50">
+          {([
+            ['timeline', 'Timeline', <CalendarDays key="i" size={15} />],
+            ['sessions', 'Sessions', <Video key="i" size={15} />],
+            ['admin', 'Courses & admin', <BookOpen key="i" size={15} />],
+          ] as [Tab, string, ReactNode][]).map(([k, label, icon]) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={`inline-flex items-center gap-2 h-10 px-3 sm:px-4 text-sm whitespace-nowrap rounded-xl transition-base ${tab === k ? 'bg-primary text-primary-foreground shadow-sm-custom' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}`}
+            >
+              {icon}
+              {k === 'admin' ? (<><span className="hidden sm:inline">{label}</span><span className="sm:hidden">Courses</span></>) : label}
+              {k === 'admin' && urgentOpen > 0 && (
+                <span className={`text-[11px] tabular-nums px-1.5 rounded-md ${tab === k ? 'bg-primary-foreground/20' : 'bg-muted'}`}>{urgentOpen}</span>
+              )}
+            </button>
+          ))}
+        </div>
+        {tab !== 'admin' && (
+          <button
+            onClick={() => setAdding(a => !a)}
+            className="inline-flex items-center gap-1.5 h-10 px-4 text-sm rounded-xl bg-card border border-border/60 shadow-sm-custom text-foreground hover:border-primary/50 transition-base"
+          >
+            <Plus size={15} /> Add a session or assignment
+          </button>
+        )}
       </div>
 
-      <div className="grid gap-6 grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] items-start">
-        <div className="flex flex-col gap-6">
-          {/* ── Urgent ──────────────────────────────────────────── */}
-          <Section
-            icon={<AlertTriangle size={16} className="text-[hsl(var(--status-red))]" />}
-            title="Urgent Action Items"
-            subtitle={urgentOpen ? `${urgentOpen} still open` : 'All handled'}
-          >
-            <div className="space-y-2">
-              {URGENT.map(u => {
-                const done = !!state.urgentDone[u.id];
-                return (
+      {/* ── Timeline tab ─────────────────────────────────────────── */}
+      {tab === 'timeline' && (
+        <Card className="p-4 sm:p-6">
+          <CardHeader
+            icon={<CalendarDays size={18} />}
+            title="What's coming up"
+            subtitle="Mark each session when you've watched it, and each assignment when it's submitted"
+            right={
+              <div className="inline-flex items-center gap-1 bg-muted/70 rounded-xl p-1">
+                {(['all', 'session', 'assignment'] as Filter[]).map(f => (
                   <button
-                    key={u.id}
-                    onClick={() => toggleUrgent(u.id)}
-                    className={`w-full text-left flex items-start gap-3 px-3.5 py-3 rounded-xl border transition-base ${done ? 'bg-muted/30 border-transparent opacity-60' : 'bg-[hsl(var(--status-red-bg))] border-[hsl(var(--status-red))]/15 hover:border-[hsl(var(--status-red))]/35'}`}
+                    key={f}
+                    onClick={() => setFilter(f)}
+                    className={`px-3 h-8 text-xs rounded-lg transition-base ${filter === f ? 'bg-card text-foreground shadow-sm-custom' : 'text-muted-foreground hover:text-foreground'}`}
                   >
-                    <span className={`mt-0.5 w-[18px] h-[18px] rounded-md border-2 flex items-center justify-center shrink-0 transition-base ${done ? 'bg-[hsl(var(--status-green))] border-transparent text-white' : 'border-[hsl(var(--status-red))]/50 bg-card'}`}>
-                      {done && <Check size={12} strokeWidth={3} />}
-                    </span>
-                    <span className="flex-1">
-                      <span className={`block text-sm font-semibold text-foreground ${done ? 'line-through' : ''}`}>{u.title}</span>
-                      <span className="block text-xs text-muted-foreground mt-0.5 leading-relaxed">{u.detail}</span>
-                    </span>
+                    {f === 'all' ? 'Everything' : f === 'session' ? 'Sessions' : 'Assignments'}
                   </button>
-                );
-              })}
-            </div>
-          </Section>
+                ))}
+              </div>
+            }
+          />
+          {adding && addForm}
 
-          {/* ── Courses ─────────────────────────────────────────── */}
-          <Section icon={<BookOpen size={16} className="text-primary" />} title="Courses">
-            <div className="flex flex-col gap-5">
-              <CourseTable title="Enrolled & studying" rows={ENROLLED} progress={courseProgress} />
-              <CourseTable title='Registration incomplete ("Awaiting your action")' rows={PENDING} progress={courseProgress} />
-              <CourseTable title="Not registered" rows={NOT_REGISTERED} />
-              <p className="text-xs text-muted-foreground">The course home page also lists a Price Theory C session on 12.11, 17:00–20:00.</p>
+          {catchUpVisible.length > 0 && !showPast && (
+            <div className="mb-6">
+              <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2.5 px-1">To catch up · {catchUpVisible.length}</h3>
+              <div className="space-y-2">{catchUpVisible.map(renderRow)}</div>
             </div>
-          </Section>
+          )}
 
-          {/* ── Grade improvement ───────────────────────────────── */}
-          <Section icon={<CalendarClock size={16} className="text-primary" />} title="Grade Improvement">
-            <div className="space-y-1.5">
-              {GRADE_IMPROVEMENT.map(g => {
-                const tone = g.status === 'ok'
-                  ? { cls: 'bg-[hsl(var(--status-green-bg))] text-[hsl(var(--status-green))]', text: 'Approved' }
-                  : g.status === 'action'
-                    ? { cls: 'bg-[hsl(var(--status-yellow-bg))] text-[hsl(var(--status-yellow))]', text: 'Action needed' }
-                    : { cls: 'bg-muted text-muted-foreground', text: 'Waiting' };
-                return (
-                  <div key={g.code} className="px-3.5 py-2.5 rounded-xl bg-muted/30">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold text-foreground flex-1 min-w-[140px]">{g.name}</span>
-                      <span className="text-[11px] font-mono text-muted-foreground tabular-nums">{g.code}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${tone.cls}`}>{tone.text}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{g.text}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </Section>
-        </div>
-
-        {/* ── Timeline ──────────────────────────────────────────── */}
-        <Section
-          icon={<Clock size={16} className="text-primary" />}
-          title="Semester Timeline"
-          subtitle="Tick an assignment when submitted, a session when watched"
-          right={
-            <div className="flex items-center gap-1 bg-muted rounded-xl p-0.5">
-              {(['all', 'assignment', 'session'] as Filter[]).map(f => (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-base ${filter === f ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                >
-                  {f === 'all' ? 'All' : f === 'assignment' ? 'Assignments' : 'Sessions'}
-                </button>
-              ))}
-            </div>
-          }
-        >
-          {/* Add custom deadline */}
-          <div className="flex flex-wrap gap-2 mb-4 p-2 rounded-xl bg-muted/40">
-            <input
-              type="date"
-              value={newDate}
-              onChange={e => setNewDate(e.target.value)}
-              className="px-2 py-1.5 text-xs bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-            <select
-              value={newCourse}
-              onChange={e => setNewCourse(e.target.value as CourseKey)}
-              className="px-2 py-1.5 text-xs bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              {(Object.keys(COURSES) as CourseKey[]).map(k => (
-                <option key={k} value={k}>{COURSES[k].short}</option>
-              ))}
-            </select>
-            <input
-              type="text"
-              value={newLabel}
-              onChange={e => setNewLabel(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addCustom()}
-              placeholder="Add a deadline..."
-              dir="auto"
-              className="flex-1 min-w-[120px] px-3 py-1.5 text-xs bg-card rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-muted-foreground/40"
-            />
-            <button onClick={addCustom} title="Add" className="p-1.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-base">
-              <Plus size={14} />
-            </button>
-          </div>
-
-          <div className="flex flex-col gap-5">
-            {grouped.length === 0 && <p className="text-xs text-muted-foreground/50 text-center py-6">Nothing to show</p>}
-            {grouped.map(([month, items]) => (
-              <div key={month}>
-                <h3 className="sticky top-0 z-[1] text-[11px] font-bold uppercase tracking-wide text-muted-foreground/70 mb-1.5 py-1 bg-card">{month}</h3>
-                <div className="space-y-1">
-                  {items.map(item => {
-                    const done = !!state.itemDone[item.id];
-                    const n = daysUntil(item.date);
-                    const isPast = n < 0;
-                    const checkable = isCheckable(item.kind);
-                    const isSession = item.kind === 'session';
-                    const isOverdue = isDeliverable(item.kind) && isPast && !done;
-                    const notWatched = isSession && isPast && !done;
-                    const isToday = n === 0;
-                    const d = parseISO(item.date);
-                    const color = COURSES[item.course].color;
-                    return (
-                      <div
-                        key={item.id}
-                        className={`group flex items-center gap-3 pl-0 pr-2.5 py-1.5 rounded-xl border transition-base
-                          ${item.kind === 'exam' ? 'bg-[hsl(var(--status-red-bg))] border-[hsl(var(--status-red))]/20'
-                            : isToday ? 'bg-accent/60 border-primary/20'
-                            : 'border-transparent hover:bg-muted/30 hover:border-border/60'}
-                          ${done ? 'opacity-55' : ''}`}
-                      >
-                        <span className="self-stretch w-[3px] rounded-full shrink-0" style={{ background: `hsl(${color} / ${isSession ? 0.35 : 0.9})` }} />
-                        <div className="w-10 shrink-0 text-center leading-tight">
-                          <div className="text-sm font-bold text-foreground tabular-nums">{d.getDate()}</div>
-                          <div className="text-[10px] text-muted-foreground/70">{DAYS[d.getDay()]}</div>
-                        </div>
-                        {checkable ? (
-                          <button
-                            onClick={() => toggleItem(item.id)}
-                            title={isSession
-                              ? (done ? 'Mark as not watched' : 'Mark as watched')
-                              : (done ? 'Mark as not submitted' : 'Mark as submitted')}
-                            className={`w-[18px] h-[18px] border-2 flex items-center justify-center shrink-0 transition-base
-                              ${isSession ? 'rounded-full' : 'rounded-md'}
-                              ${done
-                                ? `${isSession ? 'bg-[hsl(var(--task-blue))]' : 'bg-[hsl(var(--status-green))]'} border-transparent text-white`
-                                : 'border-border bg-card hover:border-primary'}`}
-                          >
-                            {done && (isSession ? <Eye size={10} strokeWidth={3} /> : <Check size={12} strokeWidth={3} />)}
-                          </button>
-                        ) : (
-                          <span className="w-[18px] h-[18px] flex items-center justify-center shrink-0"><KindIcon kind={item.kind} /></span>
-                        )}
-                        <CourseChip course={item.course} />
-                        <div className="flex-1 min-w-0">
-                          <span dir="auto" className={`text-sm ${isSession ? 'text-muted-foreground' : 'font-semibold text-foreground'} ${done ? 'line-through' : ''}`}>
-                            {item.label}
-                          </span>
-                          {isSession && done && <span className="ml-2 text-[10px] font-semibold text-[hsl(var(--task-blue))]">Watched</span>}
-                          {item.note && <span className="block text-[11px] text-[hsl(var(--status-yellow))]">{item.note}</span>}
-                        </div>
-                        {item.time && <span className="text-[11px] text-muted-foreground/70 tabular-nums shrink-0 hidden sm:inline">{item.time}</span>}
-                        {isDeliverable(item.kind) && !done && n >= 0 && n <= 7 && (
-                          <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-md shrink-0">{relLabel(n)}</span>
-                        )}
-                        {isOverdue && (
-                          <span className="text-[10px] font-bold text-[hsl(var(--status-red))] bg-[hsl(var(--status-red-bg))] px-1.5 py-0.5 rounded-md shrink-0">Overdue</span>
-                        )}
-                        {notWatched && (
-                          <span className="text-[10px] font-bold text-[hsl(var(--task-blue))] bg-[hsl(var(--task-blue-bg))] px-1.5 py-0.5 rounded-md shrink-0">To watch</span>
-                        )}
-                        <button
-                          onClick={() => removeItem(item)}
-                          title="Remove"
-                          className="opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 p-0.5 text-muted-foreground/30 hover:text-destructive rounded transition-base shrink-0"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
+          <div className="flex flex-col gap-6">
+            {weeks.length === 0 && (
+              <div className="text-center py-10 text-muted-foreground">
+                <CalendarDays size={28} className="mx-auto mb-2 opacity-40" />
+                <p className="text-sm">Nothing here</p>
+              </div>
+            )}
+            {weeks.map(([week, items]) => (
+              <div key={week}>
+                <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2.5 px-1 flex items-center gap-2">
+                  {weekLabel(week, thisWeek)}
+                  <span className="flex-1 h-px bg-border/70" />
+                  <span className="normal-case tracking-normal tabular-nums">{items.filter(isDone).length}/{items.filter(i => i.kind !== 'milestone').length} done</span>
+                </h3>
+                <div className="space-y-2">{items.map(renderRow)}</div>
               </div>
             ))}
           </div>
 
-          <p className="text-[11px] text-muted-foreground/70 mt-4">Assignment numbers don't always follow date order – this is how they appear in the query.</p>
-
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50 text-xs">
-            <button onClick={() => setShowPast(p => !p)} className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-base">
-              {showPast ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-              {showPast ? 'Hide past items' : 'Show past items'}
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-6 pt-4 border-t border-border/60 text-sm">
+            <button onClick={() => setShowPast(p => !p)} className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-base">
+              {showPast ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+              {showPast ? 'Hide past weeks' : 'Show past weeks'}
             </button>
             {hiddenCount > 0 && (
               <button onClick={restoreHidden} className="text-muted-foreground hover:text-foreground transition-base">
@@ -694,12 +667,139 @@ export function UniversityStudies() {
               </button>
             )}
           </div>
-        </Section>
-      </div>
+        </Card>
+      )}
+
+      {/* ── Sessions tab ─────────────────────────────────────────── */}
+      {tab === 'sessions' && (
+        <div className="flex flex-col gap-4">
+          {adding && <Card className="p-4">{addForm}</Card>}
+          <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+            {sessionCourses.map(k => {
+              const list = sessions.filter(s => s.course === k);
+              const watched = list.filter(isDone).length;
+              const c = COURSES[k];
+              return (
+                <Card key={k} className="p-5">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <h3 className="text-base font-semibold text-foreground">{c.name}</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">{c.code}{c.meeting ? ` · ${c.meeting}` : ''}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-lg font-semibold tabular-nums text-foreground">{watched}<span className="text-sm text-muted-foreground font-normal"> / {list.length}</span></div>
+                      <div className="text-[11px] text-muted-foreground">watched</div>
+                    </div>
+                  </div>
+                  <Bar value={watched} total={list.length} />
+                  <div className="mt-4 space-y-1.5">
+                    {list.map(s => {
+                      const done = isDone(s);
+                      const n = daysUntil(s.date);
+                      return (
+                        <div key={s.id} className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-base ${done ? 'bg-accent/40' : n === 0 ? 'bg-accent/60' : 'hover:bg-muted/40'}`}>
+                          <span className="w-16 text-sm tabular-nums text-foreground">{DAYS[parseISO(s.date).getDay()]} {fmtDM(s.date)}</span>
+                          <span className="flex-1 min-w-0 text-xs text-muted-foreground truncate" dir="auto">
+                            {s.custom ? s.label : n === 0 ? 'Today' : n < 0 && !done ? `Not watched yet · ${relLabel(n)}` : n > 0 ? relLabel(n) : ''}
+                          </span>
+                          <DoneToggle item={s} done={done} onToggle={() => toggleItem(s.id)} compact />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button
+                    onClick={() => { setNewCourse(k); setNewKind('session'); setNewLabel(''); setNewDate(today); setAdding(true); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                    className="mt-3 w-full h-9 text-xs text-muted-foreground hover:text-foreground border border-dashed border-border rounded-xl hover:border-primary/50 transition-base inline-flex items-center justify-center gap-1.5"
+                  >
+                    <Plus size={13} /> Add an earlier or recorded session
+                  </button>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Courses & admin tab ──────────────────────────────────── */}
+      {tab === 'admin' && (
+        <div className="grid gap-6 grid-cols-1 lg:grid-cols-2 items-start">
+          <Card className="p-5 sm:p-6">
+            <CardHeader icon={<ListChecks size={18} />} title="Admin to-do" subtitle={urgentOpen ? `${urgentOpen} still open` : 'All handled'} />
+            <div className="space-y-2">
+              {URGENT.map(u => {
+                const done = !!state.urgentDone[u.id];
+                return (
+                  <button
+                    key={u.id}
+                    onClick={() => toggleUrgent(u.id)}
+                    className={`w-full text-left flex items-start gap-3 px-4 py-3.5 rounded-2xl border transition-base ${done ? 'bg-muted/30 border-transparent' : 'bg-card border-border/60 hover:border-primary/40 hover:shadow-sm-custom'}`}
+                  >
+                    <span className={`mt-0.5 w-5 h-5 rounded-lg border-2 flex items-center justify-center shrink-0 transition-base ${done ? 'bg-primary border-transparent text-primary-foreground' : 'border-border bg-card'}`}>
+                      {done && <Check size={13} strokeWidth={3} />}
+                    </span>
+                    <span className="flex-1">
+                      <span className={`block text-sm text-foreground ${done ? 'line-through text-muted-foreground' : ''}`}>{u.title}</span>
+                      <span className="block text-xs text-muted-foreground mt-1 leading-relaxed">{u.detail}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </Card>
+
+          <div className="flex flex-col gap-6">
+            <Card className="p-5 sm:p-6">
+              <CardHeader icon={<BookOpen size={18} />} title="Courses" />
+              <div className="flex flex-col gap-5">
+                {([['Enrolled & studying', ENROLLED], ['Registration incomplete', PENDING], ['Not registered', NOT_REGISTERED]] as [string, CourseRow[]][]).map(([title, rows]) => (
+                  <div key={title}>
+                    <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-2 px-1">{title}</h3>
+                    <div className="space-y-1.5">
+                      {rows.map(r => {
+                        const list = r.course ? sessions.filter(s => s.course === r.course) : [];
+                        const asg = r.course ? assignments.filter(a => a.course === r.course) : [];
+                        return (
+                          <div key={r.code} className="px-4 py-3 rounded-2xl bg-muted/35">
+                            <div className="flex flex-wrap items-baseline gap-x-3">
+                              <span className="text-sm text-foreground flex-1 min-w-[160px]">{r.name}</span>
+                              <span className="text-xs text-muted-foreground tabular-nums">{r.code}</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
+                              <span className="inline-flex items-center gap-1"><Clock size={11} />{r.meeting}</span>
+                              {r.warn && <span className="inline-flex items-center gap-1"><AlertTriangle size={11} />{r.warn}</span>}
+                              {list.length > 0 && <span className="inline-flex items-center gap-1 tabular-nums"><Video size={11} />{list.filter(isDone).length}/{list.length} watched</span>}
+                              {asg.length > 0 && <span className="inline-flex items-center gap-1 tabular-nums"><FileText size={11} />{asg.filter(isDone).length}/{asg.length} submitted</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground px-1">The course home page also lists a Price Theory C session on 12.11, 17:00–20:00.</p>
+              </div>
+            </Card>
+
+            <Card className="p-5 sm:p-6">
+              <CardHeader icon={<CalendarClock size={18} />} title="Grade improvement" />
+              <div className="space-y-1.5">
+                {GRADE_IMPROVEMENT.map(g => (
+                  <div key={g.code} className="px-4 py-3 rounded-2xl bg-muted/35">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm text-foreground flex-1 min-w-[140px]">{g.name}</span>
+                      <span className="text-xs text-muted-foreground tabular-nums">{g.code}</span>
+                      <span className={`text-[11px] px-2 py-0.5 rounded-lg ${g.status === 'ok' ? 'bg-accent text-primary' : g.status === 'action' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                        {g.status === 'ok' ? 'Approved' : g.status === 'action' ? 'Action needed' : 'Waiting'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{g.text}</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
-
-function kindOrder(k: ItemKind): number {
-  return k === 'exam' ? 0 : k === 'assignment' ? 1 : k === 'session' ? 2 : 3;
 }

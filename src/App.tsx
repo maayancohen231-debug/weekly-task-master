@@ -176,11 +176,15 @@ function getRealId(id: string): string {
 // ── App shell — only handles page routing, no other hooks ────────────────────
 
 export default function App() {
-  const [page, setPage] = useState<'planner' | 'academic' | 'gantt'>(() =>
-    typeof window !== 'undefined' && window.location.hash === '#gantt' ? 'gantt' : 'planner');
+  const [page, setPage] = useState<'planner' | 'academic' | 'gantt'>(() => {
+    if (typeof window === 'undefined') return 'planner';
+    if (window.location.hash === '#gantt') return 'gantt';
+    if (window.location.hash === '#studies') return 'academic';
+    return 'planner';
+  });
 
   useEffect(() => {
-    const want = page === 'gantt' ? '#gantt' : '';
+    const want = page === 'gantt' ? '#gantt' : page === 'academic' ? '#studies' : '';
     if (window.location.hash !== want) history.replaceState(null, '', want || window.location.pathname + window.location.search);
   }, [page]);
 
