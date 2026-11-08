@@ -5,8 +5,9 @@ import {
   defaultDropAnimationSideEffects,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar, AlertTriangle, X, Eraser, Tags, Sun } from 'lucide-react';
+import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar, AlertTriangle, X, Eraser, Tags, Sun, ChartGantt } from 'lucide-react';
 import { AcademicBoard } from '@/components/AcademicBoard';
+import { GoalsGantt } from '@/components/GoalsGantt';
 import { forceSeedData } from '@/lib/seed';
 import {
   isConfigured, isTokenValid, requestToken,
@@ -175,7 +176,21 @@ function getRealId(id: string): string {
 // ── App shell — only handles page routing, no other hooks ────────────────────
 
 export default function App() {
-  const [page, setPage] = useState<'planner' | 'academic'>('planner');
+  const [page, setPage] = useState<'planner' | 'academic' | 'gantt'>(() =>
+    typeof window !== 'undefined' && window.location.hash === '#gantt' ? 'gantt' : 'planner');
+
+  useEffect(() => {
+    const want = page === 'gantt' ? '#gantt' : '';
+    if (window.location.hash !== want) history.replaceState(null, '', want || window.location.pathname + window.location.search);
+  }, [page]);
+
+  if (page === 'gantt') {
+    return (
+      <ErrorBoundary>
+        <GoalsGantt onBack={() => setPage('planner')} />
+      </ErrorBoundary>
+    );
+  }
 
   if (page === 'academic') {
     return (
@@ -187,14 +202,14 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <Planner onNavigateAcademic={() => setPage('academic')} />
+      <Planner onNavigateAcademic={() => setPage('academic')} onNavigateGantt={() => setPage('gantt')} />
     </ErrorBoundary>
   );
 }
 
 // ── Planner — all hooks live here ────────────────────────────────────────────
 
-function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
+function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: () => void; onNavigateGantt: () => void }) {
   const [weekStart, setWeekStart] = useState(() => getWeekSunday(new Date()));
   const weekKey = useMemo(() => getWeekKey(weekStart), [weekStart]);
 
@@ -1483,6 +1498,14 @@ function Planner({ onNavigateAcademic }: { onNavigateAcademic: () => void }) {
             >
               <GraduationCap size={14} />
               <span>University Studies</span>
+            </button>
+            <button
+              onClick={onNavigateGantt}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-primary bg-accent hover:bg-accent/80 rounded-xl transition-base"
+              title="לוח המטרות השנתי (תשפ״ו, תשפ״ז)"
+            >
+              <ChartGantt size={14} />
+              <span>גאנט</span>
             </button>
           </div>
         </div>
