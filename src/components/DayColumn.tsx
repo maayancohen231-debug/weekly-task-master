@@ -56,22 +56,36 @@ export function DayColumn({
     if (e.key === 'Escape') closeEditor();
   };
 
+  const total = tasks.length;
+  const doneCount = tasks.filter(t => t.status === 'green').length;
+
   return (
     <div
       ref={setNodeRef}
-      className={`flex-1 min-w-[160px] bg-card rounded-2xl shadow-card flex flex-col transition-base ${
-        isOver ? 'ring-2 ring-primary/20 shadow-hover' : ''
-      }`}
+      className={`flex-1 min-w-[200px] bg-card rounded-2xl shadow-card flex flex-col overflow-hidden transition-base ${
+        isOver ? 'ring-2 ring-primary/25 shadow-hover' : ''
+      } ${isToday ? 'ring-1 ring-primary/30' : ''}`}
     >
-      <div className="px-4 pt-5 pb-3">
-        <div className="flex items-center gap-2">
-          <h3 className="text-[15px] font-bold text-foreground">{label}</h3>
-          {isToday && <span className="w-2 h-2 rounded-full bg-foreground" />}
+      {isToday && <div className="h-1 bg-primary shrink-0" />}
+      <div className="px-4 pt-4 pb-3">
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="flex items-baseline gap-2">
+            <h3 className={`text-[15px] font-bold ${isToday ? 'text-primary' : 'text-foreground'}`}>{label}</h3>
+            <span className="text-xs text-muted-foreground">{date}</span>
+          </div>
+          {isToday && <span className="text-[10px] font-bold uppercase tracking-wide text-primary bg-primary/10 px-1.5 py-0.5 rounded-md">Today</span>}
         </div>
-        <p className="text-xs text-muted-foreground mt-0.5">{date}</p>
+        {total > 0 && (
+          <div className="mt-2.5 flex items-center gap-2">
+            <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden">
+              <div className="h-full rounded-full bg-[hsl(var(--status-green))] transition-all duration-500" style={{ width: `${(doneCount / total) * 100}%` }} />
+            </div>
+            <span className="text-[10.5px] tabular-nums text-muted-foreground">{doneCount}/{total}</span>
+          </div>
+        )}
       </div>
 
-      <div className="flex-1 px-3 pb-2 flex flex-col gap-2 min-h-[240px] overflow-y-auto scroll-thin">
+      <div className="flex-1 px-3 pt-2 pb-2 flex flex-col gap-1.5 min-h-[240px] overflow-y-auto scroll-thin">
         {tasks.length === 0 && !isEditing && (
           <div className="flex-1 flex flex-col items-center justify-center gap-1.5 py-6 text-center">
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary/50">
@@ -128,7 +142,7 @@ export function DayColumn({
       ) : (
         <button
           onClick={openEditor}
-          className="flex items-center gap-1.5 px-4 py-3.5 text-xs text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/30 rounded-b-2xl transition-base"
+          className="flex items-center gap-1.5 mx-3 mb-3 px-3 py-2 text-xs text-muted-foreground/60 hover:text-primary hover:bg-primary/5 border border-dashed border-border hover:border-primary/30 rounded-xl transition-base"
         >
           <Plus size={14} />
           <span>Add task</span>

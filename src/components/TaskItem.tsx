@@ -1,10 +1,10 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Trash2, CheckCircle2, Repeat, Repeat1, Palette, Scissors, CalendarPlus, ChevronUp, ChevronDown, Clock } from 'lucide-react';
+import { Trash2, CheckCircle2, Repeat, Repeat1, Palette, Scissors, CalendarPlus, ChevronUp, ChevronDown, Clock } from 'lucide-react';
 import { useState } from 'react';
 import type { Task, TaskColor } from '@/lib/task-types';
 import { TASK_COLORS, DAYS } from '@/lib/task-types';
-import { statusClasses, statusBorderClasses, statusIconClasses, colorDotClasses, colorBorderOverrides } from '@/lib/task-styles';
+import { statusIconClasses, colorDotClasses, colorBorderOverrides } from '@/lib/task-styles';
 
 interface TaskItemProps {
   task: Task;
@@ -36,50 +36,64 @@ export function TaskItem({
 
   const taskColor = task.color || 'none';
 
+  const isDone = task.status === 'green';
+  // Done = quiet (faded, struck through). In-progress / stuck keep a soft tint
+  // so they still stand out from plain open tasks.
+  const surface =
+    task.status === 'yellow' ? 'bg-[hsl(var(--status-yellow-bg))] border-[hsl(var(--status-yellow)/0.25)]'
+    : task.status === 'red' ? 'bg-[hsl(var(--status-red-bg))] border-[hsl(var(--status-red)/0.25)]'
+    : isDone ? 'bg-muted/30 border-transparent'
+    : 'bg-card border-border/70';
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
-      className={`group relative flex flex-col gap-1 px-3 py-2.5 rounded-xl border transition-base cursor-grab active:cursor-grabbing ${statusClasses[task.status]} ${statusBorderClasses[task.status]} ${colorBorderOverrides[taskColor]} ${
-        isOverlay ? 'shadow-overlay scale-[1.02]' : 'shadow-sm-custom hover:shadow-hover hover:-translate-y-0.5'
+      className={`group relative flex flex-col rounded-xl border transition-base cursor-grab active:cursor-grabbing ${surface} ${colorBorderOverrides[taskColor]} ${
+        isOverlay ? 'shadow-overlay scale-[1.02] bg-card' : isDone ? '' : 'hover:shadow-sm-custom hover:border-border'
       }`}
       onClick={() => onCycleStatus?.(task.id)}
     >
-      <div className="flex items-center gap-2">
-        <GripVertical size={14} className="shrink-0 text-muted-foreground/20 group-hover:text-muted-foreground/40 transition-base" />
+      <div className="flex items-start gap-2.5 px-3 py-2.5">
+        <CheckCircle2
+          size={17}
+          strokeWidth={isDone ? 2.25 : 1.75}
+          className={`shrink-0 mt-px transition-base ${statusIconClasses[task.status]} ${task.status === 'none' ? 'group-hover:text-primary/50' : ''}`}
+        />
 
-        <CheckCircle2 size={16} className={`shrink-0 transition-base ${statusIconClasses[task.status]}`} />
-
-        <div className="flex-1 min-w-0 flex items-center gap-1">
-          {task.isDaily && (
-            <Repeat size={10} className="shrink-0 text-primary/50" />
-          )}
-          {task.isWeekly && (
-            <Repeat1 size={10} className="shrink-0 text-primary/50" />
-          )}
-          {taskColor !== 'none' && (
-            <span className={`shrink-0 w-1.5 h-1.5 rounded-full ${colorDotClasses[taskColor]}`} />
-          )}
-          {isSynced && (
-            <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[hsl(var(--task-blue))]" title="Added to Google Calendar" />
-          )}
-          <p className={`flex-1 text-[11px] leading-relaxed break-words ${task.status === 'green' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+        <div className="flex-1 min-w-0">
+          <p
+            dir="auto"
+            className={`text-[13px] leading-snug break-words ${isDone ? 'line-through decoration-muted-foreground/40 text-muted-foreground/70' : 'text-foreground'}`}
+          >
             {task.content}
           </p>
-          {task.startTime && (
-            <span className="shrink-0 flex items-center gap-0.5 text-[10px] text-muted-foreground/60" title={`${task.startTime} · ${task.durationMinutes ?? 30} min`}>
-              <Clock size={10} />
-              {task.startTime}
-            </span>
+          {(task.isDaily || task.isWeekly || taskColor !== 'none' || isSynced || task.startTime) && (
+            <div className={`flex items-center flex-wrap gap-x-2 gap-y-0.5 mt-1 text-[10.5px] ${isDone ? 'text-muted-foreground/50' : 'text-muted-foreground/70'}`}>
+              {task.startTime && (
+                <span className="inline-flex items-center gap-0.5 tabular-nums" title={`${task.startTime} · ${task.durationMinutes ?? 30} min`}>
+                  <Clock size={10} /> {task.startTime}
+                </span>
+              )}
+              {task.isDaily && <span className="inline-flex items-center gap-0.5"><Repeat size={10} /> Daily</span>}
+              {task.isWeekly && <span className="inline-flex items-center gap-0.5"><Repeat1 size={10} /> Weekly</span>}
+              {taskColor !== 'none' && <span className={`w-1.5 h-1.5 rounded-full ${colorDotClasses[taskColor]}`} />}
+              {isSynced && <span className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--task-blue))]" title="Added to Google Calendar" />}
+            </div>
           )}
         </div>
       </div>
 
-      {/* Its own row + flex-wrap so a narrow card can never squeeze delete out of view
-          the way it did when this shared a single non-wrapping row with the content. */}
-      <div className="flex items-center flex-wrap justify-end gap-0.5 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 transition-base">
+      {/* Actions: on touch screens an inline row under the content; with a mouse
+          a small floating toolbar that appears on hover, so cards don't carry an
+          empty row of invisible buttons. */}
+      {!isOverlay && (
+      <div className="flex items-center flex-wrap justify-end gap-0.5 px-2 pb-1.5 transition-base
+        [@media(hover:hover)]:absolute [@media(hover:hover)]:top-1 [@media(hover:hover)]:right-1 [@media(hover:hover)]:z-20
+        [@media(hover:hover)]:p-0.5 [@media(hover:hover)]:bg-card [@media(hover:hover)]:rounded-lg [@media(hover:hover)]:shadow-overlay [@media(hover:hover)]:border [@media(hover:hover)]:border-border/60
+        [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:pointer-events-none [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-hover:pointer-events-auto">
         {onMoveUp && (
           <button
             onClick={(e) => { e.stopPropagation(); onMoveUp(); }}
@@ -171,6 +185,7 @@ export function TaskItem({
           <Trash2 size={13} />
         </button>
       </div>
+      )}
     </div>
   );
 }
