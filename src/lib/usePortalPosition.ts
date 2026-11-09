@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import { useExclusivePopup } from './useExclusivePopup';
 
 // Shared by any popover that lives inside the week grid's deeply-nested
 // absolutely-positioned task/event blocks — a plain `position: absolute`
@@ -51,5 +52,6 @@ export function usePortalPosition() {
       document.removeEventListener('keydown', onKey);
     };
   }, [!!pos]);
+  useExclusivePopup(!!pos, () => setPos(null));
   return { btnRef, popRef, pos, open: measure, close: () => setPos(null) };
 }

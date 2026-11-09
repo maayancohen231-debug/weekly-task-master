@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useExclusivePopup } from '@/lib/useExclusivePopup';
 import { useDraggable } from '@dnd-kit/core';
 import { Plus, Trash2, GripVertical, CheckCircle2, Repeat, Repeat1, Palette, Scissors, Loader2 } from 'lucide-react';
 import type { Task, TaskColor } from '@/lib/task-types';
@@ -17,6 +18,7 @@ interface BankItemProps {
 
 function BankItem({ task, onDelete, onCycleStatus, onToggleDaily, onToggleWeekly, onSetColor, onSplitTask }: BankItemProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
+  useExclusivePopup(showColorPicker, () => setShowColorPicker(false));
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id });
   const taskColor = task.color || 'none';
   const style = {

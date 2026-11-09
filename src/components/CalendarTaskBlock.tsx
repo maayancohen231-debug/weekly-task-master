@@ -1,6 +1,7 @@
 import { useDraggable } from '@dnd-kit/core';
 import { Trash2, Repeat, Repeat1, Palette, Clock, CalendarClock, Copy } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useExclusivePopup } from '@/lib/useExclusivePopup';
 import { createPortal } from 'react-dom';
 import type { Task, TaskColor } from '@/lib/task-types';
 import { TASK_COLORS } from '@/lib/task-types';
@@ -61,6 +62,21 @@ export function CalendarTaskBlock({
   const [resizeDeltaPx, setResizeDeltaPx] = useState<number | null>(null);
   const [isFront, setIsFront] = useState(false);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id });
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const setRootRef = (el: HTMLDivElement | null) => { rootRef.current = el; setNodeRef(el); };
+  // Opening the edit form closes any other popup, and any other popup (or a
+  // press anywhere outside this block) closes the edit form.
+  useExclusivePopup(isEditing, closeEdit);
+  useEffect(() => {
+    if (!isEditing) return;
+    const onDown = (e: PointerEvent) => {
+      if (rootRef.current?.contains(e.target as Node)) return;
+      closeEdit();
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing]);
   const taskColor = task.color || 'none';
   const displayHeight = resizeDeltaPx !== null ? Math.max(20, height + resizeDeltaPx) : height;
   const compact = displayHeight < 40;
@@ -168,7 +184,7 @@ export function CalendarTaskBlock({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={setRootRef}
       style={style}
       {...attributes}
       {...listeners}

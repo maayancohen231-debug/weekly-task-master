@@ -1,4 +1,5 @@
 import { useSortable } from '@dnd-kit/sortable';
+import { useExclusivePopup } from '@/lib/useExclusivePopup';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Trash2, CheckCircle2, Repeat, Repeat1, Palette, Scissors, CalendarPlus, ChevronUp, ChevronDown, Clock } from 'lucide-react';
 import { useState } from 'react';
@@ -26,6 +27,7 @@ export function TaskItem({
   onMoveUp, onMoveDown, onAddToCalendar, isSynced = false, isOverlay = false,
 }: TaskItemProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
+  useExclusivePopup(showColorPicker, () => setShowColorPicker(false));
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
 
   const style = {

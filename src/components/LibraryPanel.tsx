@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useExclusivePopup } from '@/lib/useExclusivePopup';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Plus, Trash2, GripVertical, Palette, Clock, Hourglass } from 'lucide-react';
@@ -19,6 +20,8 @@ function DraggableLibraryItem({
 }) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showDurationPicker, setShowDurationPicker] = useState(false);
+  useExclusivePopup(showColorPicker, () => setShowColorPicker(false));
+  useExclusivePopup(showDurationPicker, () => setShowDurationPicker(false));
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
   const taskColor = task.color ?? 'none';

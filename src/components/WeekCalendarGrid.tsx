@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useExclusivePopup } from '@/lib/useExclusivePopup';
 import { useDroppable, useDndMonitor } from '@dnd-kit/core';
 import { Plus, X, ZoomIn, ZoomOut } from 'lucide-react';
 import type { Task, TaskColor } from '@/lib/task-types';
@@ -169,6 +170,7 @@ export function WeekCalendarGrid({
     setTimeout(() => quickAddInputRef.current?.focus(), 0);
   };
   const closeQuickAdd = () => { setQuickAdd(null); setQuickAddValue(''); };
+  useExclusivePopup(!!quickAdd, closeQuickAdd);
   const submitQuickAdd = () => {
     if (quickAdd && quickAddValue.trim()) onQuickAdd?.(quickAdd.dayId, quickAdd.time, quickAddValue);
     closeQuickAdd();
