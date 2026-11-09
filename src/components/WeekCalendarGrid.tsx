@@ -170,7 +170,9 @@ export function WeekCalendarGrid({
     setTimeout(() => quickAddInputRef.current?.focus(), 0);
   };
   const closeQuickAdd = () => { setQuickAdd(null); setQuickAddValue(''); };
-  useExclusivePopup(!!quickAdd, closeQuickAdd);
+  const quickAddBoxRef = useRef<HTMLDivElement>(null);
+  // Outside press closes quick-add only while it's still empty — typed text is never thrown away.
+  useExclusivePopup(!!quickAdd, closeQuickAdd, { ref: quickAddBoxRef, keepOnOutside: () => quickAddValue.trim() !== '' });
   const submitQuickAdd = () => {
     if (quickAdd && quickAddValue.trim()) onQuickAdd?.(quickAdd.dayId, quickAdd.time, quickAddValue);
     closeQuickAdd();
@@ -337,6 +339,7 @@ export function WeekCalendarGrid({
 
                   {quickAdd?.dayId === day.id && (
                     <div
+                      ref={quickAddBoxRef}
                       style={{ top: minutesFromGridStart(quickAdd.time) * pxPerMinute, zIndex: 60 }}
                       className="absolute left-0.5 right-0.5"
                       onClick={e => e.stopPropagation()}

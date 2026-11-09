@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useExclusivePopup } from '@/lib/useExclusivePopup';
 import { Tags, X, Trash2 } from 'lucide-react';
 import type { GCalCalendar } from '@/services/googleCalendar';
 
@@ -11,6 +12,8 @@ interface Props {
 }
 
 export function CalendarKeywordsModal({ calendars, learnedKeywords, onAdd, onRemove, onClose }: Props) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  useExclusivePopup(true, onClose, { ref: cardRef });
   const [word, setWord] = useState('');
   const [calendarId, setCalendarId] = useState(calendars[0]?.id ?? '');
 
@@ -25,7 +28,7 @@ export function CalendarKeywordsModal({ calendars, learnedKeywords, onAdd, onRem
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/30 flex items-center justify-center p-4">
-      <div className="bg-card rounded-2xl shadow-elevated w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden">
+      <div ref={cardRef} className="bg-card rounded-2xl shadow-elevated w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden">
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
           <Tags size={14} className="text-primary" />
           <h3 className="flex-1 text-sm font-bold text-foreground">Calendar Keywords</h3>

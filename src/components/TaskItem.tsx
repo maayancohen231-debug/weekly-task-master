@@ -2,7 +2,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { useExclusivePopup } from '@/lib/useExclusivePopup';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, Trash2, CheckCircle2, Repeat, Repeat1, Palette, Scissors, CalendarPlus, ChevronUp, ChevronDown, Clock } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { Task, TaskColor } from '@/lib/task-types';
 import { TASK_COLORS, DAYS } from '@/lib/task-types';
 import { statusClasses, statusBorderClasses, statusIconClasses, colorDotClasses, colorBorderOverrides } from '@/lib/task-styles';
@@ -27,7 +27,8 @@ export function TaskItem({
   onMoveUp, onMoveDown, onAddToCalendar, isSynced = false, isOverlay = false,
 }: TaskItemProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
-  useExclusivePopup(showColorPicker, () => setShowColorPicker(false));
+  const colorRef = useRef<HTMLDivElement>(null);
+  useExclusivePopup(showColorPicker, () => setShowColorPicker(false), { ref: colorRef });
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
 
   const style = {
@@ -119,7 +120,7 @@ export function TaskItem({
           </button>
         )}
         {onSetColor && (
-          <div className="relative">
+          <div ref={colorRef} className="relative">
             <button
               onClick={(e) => { e.stopPropagation(); setShowColorPicker(!showColorPicker); }}
               className="p-1 text-muted-foreground/30 hover:text-foreground/60 rounded-lg transition-base"

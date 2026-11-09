@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useExclusivePopup } from '@/lib/useExclusivePopup';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -20,8 +20,10 @@ function DraggableLibraryItem({
 }) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showDurationPicker, setShowDurationPicker] = useState(false);
-  useExclusivePopup(showColorPicker, () => setShowColorPicker(false));
-  useExclusivePopup(showDurationPicker, () => setShowDurationPicker(false));
+  const durationRef = useRef<HTMLDivElement>(null);
+  const colorRef = useRef<HTMLDivElement>(null);
+  useExclusivePopup(showColorPicker, () => setShowColorPicker(false), { ref: colorRef });
+  useExclusivePopup(showDurationPicker, () => setShowDurationPicker(false), { ref: durationRef });
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 };
   const taskColor = task.color ?? 'none';
@@ -61,7 +63,7 @@ function DraggableLibraryItem({
       )}
 
       <div className="opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 flex items-center gap-0.5 transition-base">
-        <div className="relative">
+        <div ref={durationRef} className="relative">
           <button
             onClick={(e) => { e.stopPropagation(); setShowDurationPicker(v => !v); }}
             className="p-0.5 text-muted-foreground/30 hover:text-foreground/60 rounded transition-base"
@@ -96,7 +98,7 @@ function DraggableLibraryItem({
             </div>
           )}
         </div>
-        <div className="relative">
+        <div ref={colorRef} className="relative">
           <button
             onClick={(e) => { e.stopPropagation(); setShowColorPicker(v => !v); }}
             className="p-0.5 text-muted-foreground/30 hover:text-foreground/60 rounded transition-base"

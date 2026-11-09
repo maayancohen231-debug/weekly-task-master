@@ -18,7 +18,8 @@ interface BankItemProps {
 
 function BankItem({ task, onDelete, onCycleStatus, onToggleDaily, onToggleWeekly, onSetColor, onSplitTask }: BankItemProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
-  useExclusivePopup(showColorPicker, () => setShowColorPicker(false));
+  const colorRef = useRef<HTMLDivElement>(null);
+  useExclusivePopup(showColorPicker, () => setShowColorPicker(false), { ref: colorRef });
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: task.id });
   const taskColor = task.color || 'none';
   const style = {
@@ -63,7 +64,7 @@ function BankItem({ task, onDelete, onCycleStatus, onToggleDaily, onToggleWeekly
         >
           <Repeat1 size={12} />
         </button>
-        <div className="relative">
+        <div ref={colorRef} className="relative">
           <button
             onClick={(e) => { e.stopPropagation(); setShowColorPicker(v => !v); }}
             className="p-1 text-muted-foreground/30 hover:text-foreground/60 rounded-lg transition-base"

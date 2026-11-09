@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useExclusivePopup } from '@/lib/useExclusivePopup';
 import {
   DndContext, pointerWithin, KeyboardSensor, PointerSensor,
   useSensor, useSensors, DragOverlay, DragEndEvent, DragStartEvent,
@@ -242,6 +243,8 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
     localStorage.setItem(VIEW_STORAGE_KEY, plannerView);
   }, [plannerView]);
   const [cleanupSelection, setCleanupSelection] = useState<Set<string> | null>(null);
+  const cleanupCardRef = useRef<HTMLDivElement>(null);
+  useExclusivePopup(!!cleanupSelection, () => setCleanupSelection(null), { ref: cleanupCardRef });
   const [showCalendarKeywords, setShowCalendarKeywords] = useState(false);
   // Morning brief opens by itself on the first visit of each day (from 05:00),
   // and from the header button any time after that.
@@ -1656,7 +1659,7 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
 
       {cleanupSelection && (
         <div className="fixed inset-0 z-[100] bg-black/30 flex items-center justify-center p-4">
-          <div className="bg-card rounded-2xl shadow-elevated w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden">
+          <div ref={cleanupCardRef} className="bg-card rounded-2xl shadow-elevated w-full max-w-md max-h-[80vh] flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
               <Eraser size={14} className="text-primary" />
               <h3 className="flex-1 text-sm font-bold text-foreground">Clean up this week</h3>

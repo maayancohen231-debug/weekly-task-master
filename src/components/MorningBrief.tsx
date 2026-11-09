@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useExclusivePopup } from '@/lib/useExclusivePopup';
 import { Sun, X, Mail, CalendarX, ListTodo, RefreshCw, ExternalLink, AlertTriangle } from 'lucide-react';
 import type { Task } from '@/lib/task-types';
 import { DAY_INDEX_TO_ID, getWeekKey, getWeekSunday } from '@/lib/task-types';
@@ -48,6 +49,7 @@ interface Props {
 }
 
 export function MorningBrief({ tasksByWeek, onClose, onGoogleConnected }: Props) {
+  useExclusivePopup(true, onClose);
   const now = new Date();
   const todayId = DAY_INDEX_TO_ID[now.getDay()];
   const todayIdx = now.getDay();
