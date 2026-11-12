@@ -1,6 +1,6 @@
 import { useDraggable } from '@dnd-kit/core';
 import { Trash2, Repeat, Repeat1, Palette, Clock, CalendarClock, Copy } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useExclusivePopup } from '@/lib/useExclusivePopup';
 import { createPortal } from 'react-dom';
 import type { Task, TaskColor } from '@/lib/task-types';
@@ -66,7 +66,28 @@ export function CalendarTaskBlock({
   const setRootRef = (el: HTMLDivElement | null) => { rootRef.current = el; setNodeRef(el); };
   // Opening the edit form closes any other popup, and any other popup (or a
   // press anywhere outside this block) closes the edit form.
-  useExclusivePopup(isEditing, closeEdit, { ref: rootRef });
+  const editFormRef = useRef<HTMLDivElement | null>(null);
+  useExclusivePopup(isEditing, closeEdit, { ref: rootRef, extraRef: editFormRef });
+  // The edit form floats above the page (portal, fixed position) and is kept
+  // inside the screen. As a child of the block it was cut off by the grid's
+  // edges: on late hours or Saturday the Save button was out of reach.
+  const [editPos, setEditPos] = useState<{ top: number; left: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!isEditing) { setEditPos(null); return; }
+    const place = () => {
+      const r = rootRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const W = 240, H = 130, M = 8;
+      const left = Math.min(Math.max(M, r.left), window.innerWidth - W - M);
+      const below = r.bottom + 4;
+      const top = below + H > window.innerHeight - M ? Math.max(M, r.top - H - 4) : below;
+      setEditPos({ top, left });
+    };
+    place();
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => { window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place); };
+  }, [isEditing]);
   const taskColor = task.color || 'none';
   const displayHeight = resizeDeltaPx !== null ? Math.max(20, height + resizeDeltaPx) : height;
   const compact = displayHeight < 40;
@@ -140,8 +161,13 @@ export function CalendarTaskBlock({
     closeEdit();
   };
 
+  // True once a press on the resize strip actually dragged. A plain click on
+  // the strip (it covers half of a short 30-minute block) must still open the
+  // edit form instead of being swallowed — that made events look uneditable.
+  const resizedRef = useRef(false);
   const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!onResize) return;
+    resizedRef.current = false;
     e.stopPropagation();
     e.preventDefault();
     const startY = e.clientY;
@@ -150,6 +176,7 @@ export function CalendarTaskBlock({
     target.setPointerCapture(e.pointerId);
 
     const handleMove = (ev: PointerEvent) => {
+      if (Math.abs(ev.clientY - startY) > 3) resizedRef.current = true;
       setResizeDeltaPx(ev.clientY - startY);
     };
     const handleUp = (ev: PointerEvent) => {
@@ -325,18 +352,21 @@ export function CalendarTaskBlock({
       {onResize && !isOverlay && (
         <div
           onPointerDown={handleResizeStart}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => { if (resizedRef.current) e.stopPropagation(); }}
           title="Drag to resize"
-          className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 flex items-center justify-center transition-base"
+          className={`absolute bottom-0 left-0 right-0 ${displayHeight < 30 ? 'h-1' : 'h-2'} cursor-ns-resize opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 flex items-center justify-center transition-base`}
         >
           <span className="w-6 h-0.5 rounded-full bg-foreground/30" />
         </div>
       )}
 
-      {showEditForm && onEdit && (
+      {showEditForm && onEdit && editPos && createPortal(
         <div
-          className="absolute left-0 top-full mt-1 z-50 bg-card rounded-xl shadow-overlay border border-border p-2 flex flex-col gap-1.5 w-48"
+          ref={editFormRef}
+          style={{ position: 'fixed', top: editPos.top, left: editPos.left, width: 240 }}
+          className="z-[200] bg-card rounded-xl shadow-overlay border border-border p-2 flex flex-col gap-1.5"
           onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
         >
           <input
             value={editContent}
@@ -400,7 +430,8 @@ export function CalendarTaskBlock({
               Cancel
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

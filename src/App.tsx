@@ -934,17 +934,33 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
   // a calendar picker; a busy block had no way to change this at all.
   const moveBusyEventCalendar = useCallback((ev: GCalBusyEvent, calendarId: string) => {
     if (calendarId === ev.calendarId) return;
-    const calendarName = calendars.find(c => c.id === calendarId)?.summary ?? '';
-    const calendarColor = calendars.find(c => c.id === calendarId)?.backgroundColor;
-    moveCalendarEvent(ev.calendarId, ev.id, calendarId)
-      .catch(err => console.error('[App] failed to move busy event to new calendar:', err));
-    setBusyEventsByDay(prev => {
-      const next: Record<string, GCalBusyEvent[]> = {};
-      for (const [dayId, events] of Object.entries(prev)) {
-        next[dayId] = events.map(e => e.id === ev.id ? { ...e, calendarId, calendarName, calendarColor } : e);
-      }
-      return next;
-    });
+    const cal = calendars.find(c => c.id === calendarId);
+    const calendarName = cal?.summary ?? '';
+    const calendarColor = cal?.backgroundColor;
+    // A repeating event can only be moved as a whole series (Google rejects
+    // moving one occurrence), so every occurrence on screen moves with it.
+    const sameEvent = (e: GCalBusyEvent) =>
+      e.id === ev.id || (!!ev.recurringEventId && e.recurringEventId === ev.recurringEventId && e.calendarId === ev.calendarId);
+    const apply = (to: { calendarId: string; calendarName: string; calendarColor?: string }) =>
+      setBusyEventsByDay(prev => {
+        const next: Record<string, GCalBusyEvent[]> = {};
+        for (const [dayId, events] of Object.entries(prev)) {
+          next[dayId] = events.map(e => sameEvent(e) ? { ...e, ...to } : e);
+        }
+        return next;
+      });
+    apply({ calendarId, calendarName, calendarColor });
+    moveCalendarEvent(ev.calendarId, ev.recurringEventId ?? ev.id, calendarId)
+      .catch(err => {
+        // Previously the error was only logged: the block showed the new
+        // calendar but Google kept the old one, so it "came back" on refresh.
+        console.error('[App] failed to move busy event to new calendar:', err);
+        apply({ calendarId: ev.calendarId, calendarName: ev.calendarName, calendarColor: ev.calendarColor });
+        const msg = String(err?.message ?? err);
+        alert(/organizer|forbidden|permission|writer/i.test(msg)
+          ? 'אי אפשר להעביר את האירוע הזה ליומן אחר: מישהו אחר הזמין אותך אליו, ורק מי שיצר אותו יכול להעביר אותו.'
+          : `העברת האירוע ליומן אחר נכשלה: ${msg}`);
+      });
   }, [calendars]);
 
   // Ends a weekly series from the current week onward: copies already

@@ -18,7 +18,7 @@ let current: { id: object; close: () => void } | null = null;
 export function useExclusivePopup(
   isOpen: boolean,
   close: () => void,
-  opts: { ref?: RefObject<HTMLElement | null>; escape?: boolean; keepOnOutside?: () => boolean } = {},
+  opts: { ref?: RefObject<HTMLElement | null>; extraRef?: RefObject<HTMLElement | null>; escape?: boolean; keepOnOutside?: () => boolean } = {},
 ) {
   const closeRef = useRef(close);
   closeRef.current = close;
@@ -34,6 +34,8 @@ export function useExclusivePopup(
     const onDown = (e: PointerEvent) => {
       const el = optsRef.current.ref?.current;
       if (!el || el.contains(e.target as Node)) return;
+      // A popup rendered in a portal (outside `ref`) counts as inside too.
+      if (optsRef.current.extraRef?.current?.contains(e.target as Node)) return;
       if (optsRef.current.keepOnOutside?.()) return;
       closeRef.current();
     };

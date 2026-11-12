@@ -39,6 +39,9 @@ export function CalendarKeywordsModal({ calendars, learnedKeywords, onAdd, onRem
         <p className="px-4 pt-3 text-xs text-muted-foreground">
           Any task whose text contains a word below auto-syncs to its matching calendar — no need to wait to be asked.
         </p>
+        <p className="px-4 pt-1.5 text-xs text-amber-700 dark:text-amber-300" dir="rtl">
+          חל רק על משימות חדשות. אירוע שכבר ביומן (עם המנעול) מעבירים בכפתור היומן שעל האירוע עצמו.
+        </p>
 
         <div className="px-4 pt-3 flex flex-col gap-1.5">
           <div className="flex items-center gap-1.5">

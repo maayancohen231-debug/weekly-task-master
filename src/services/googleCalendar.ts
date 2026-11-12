@@ -46,6 +46,9 @@ export interface GCalBusyEvent {
   calendarId: string;
   calendarName: string;
   calendarColor?: string;
+  // Set on one occurrence of a repeating event: the series' own id. Google
+  // refuses to move a single occurrence to another calendar, so a move uses it.
+  recurringEventId?: string;
 }
 
 export interface GCalEventResult {
@@ -437,7 +440,7 @@ export async function fetchWeekEvents(timeMinISO: string, timeMaxISO: string): P
       });
       const res = await gcalFetch(`/calendars/${encodeURIComponent(cal.id)}/events?${params}`);
       const data = await res.json();
-      const items = (data.items ?? []) as Array<{ id: string; summary?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string } }>;
+      const items = (data.items ?? []) as Array<{ id: string; summary?: string; recurringEventId?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string } }>;
       return items
         .filter(ev => ev.start?.dateTime && ev.end?.dateTime) // skip all-day events
         .map((ev): GCalBusyEvent => ({
@@ -448,6 +451,7 @@ export async function fetchWeekEvents(timeMinISO: string, timeMaxISO: string): P
           calendarId: cal.id,
           calendarName: cal.summary,
           calendarColor: cal.backgroundColor,
+          recurringEventId: ev.recurringEventId,
         }));
     })
   );
