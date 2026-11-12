@@ -6,10 +6,9 @@ import {
   defaultDropAnimationSideEffects,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { ChevronLeft, ChevronRight, GraduationCap, DatabaseZap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar, AlertTriangle, X, Eraser, Tags, Sun, ChartGantt } from 'lucide-react';
+import { ChevronLeft, ChevronRight, GraduationCap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar, AlertTriangle, X, Eraser, Tags, Sun, ChartGantt } from 'lucide-react';
 import { AcademicBoard } from '@/components/AcademicBoard';
 import { GoalsGantt } from '@/components/GoalsGantt';
-import { forceSeedData } from '@/lib/seed';
 import {
   isConfigured, isTokenValid, requestToken,
   refreshAccessToken, getStoredRefreshToken, clearAllTokens, connectPersistent,
@@ -505,9 +504,33 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
       .map(x => x.cal);
   }, [calendars, learnedCalendarKeywords, syncedEvents, busyEventsByDay]);
 
+  // Save every change. A failed save (storage full / blocked) must not crash
+  // the whole page, so it is caught and reported instead.
+  const lastSavedRef = useRef<string | null>(null);
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(storageData));
+    const json = JSON.stringify(storageData);
+    if (json === lastSavedRef.current) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, json);
+      lastSavedRef.current = json;
+    } catch (err) {
+      console.error('[App] save failed', err);
+      alert('השמירה נכשלה: הזיכרון של הדפדפן מלא או חסום. השינוי האחרון לא נשמר.');
+    }
   }, [storageData]);
+
+  // Another open tab of the planner saved: take its data, so this tab doesn't
+  // later overwrite it with its own older copy (that silently erased tasks
+  // added in the other tab).
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY || !e.newValue || e.newValue === lastSavedRef.current) return;
+      lastSavedRef.current = e.newValue;
+      setStorageData(loadStorage());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const setTasks = useCallback((updater: (prev: Task[]) => Task[]) => {
     setStorageData(prev => ({
@@ -1418,14 +1441,6 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
             >
               <Sun size={14} />
               <span>סיכום בוקר</span>
-            </button>
-            <button
-              onClick={() => { if (confirm('Load all sample data? This will overwrite current data.')) forceSeedData(); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-base"
-              title="Load Sample Data"
-            >
-              <DatabaseZap size={14} />
-              <span>Load Sample Data</span>
             </button>
             {scheduledInViewedWeek.length > 0 && (
               <button
