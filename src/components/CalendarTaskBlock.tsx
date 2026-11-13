@@ -22,7 +22,7 @@ interface CalendarTaskBlockProps {
   width: string;
   onDelete: (id: string) => void;
   onDuplicate?: (id: string) => void;
-  onEdit?: (id: string, updates: { content?: string; startTime?: string }) => void;
+  onEdit?: (id: string, updates: { content?: string; startTime?: string; durationMinutes?: number }) => void;
   onSetColor: (id: string, color: TaskColor) => void;
   onResize?: (id: string, durationMinutes: number) => void;
   calendars?: GCalCalendar[];
@@ -147,17 +147,15 @@ export function CalendarTaskBlock({
   const saveEdit = () => {
     if (!onEdit) return;
     const newStartTime = editTime || task.startTime;
-    onEdit(task.id, { content: editContent.trim() || task.content, startTime: newStartTime });
-    // End time isn't part of onEdit's own payload (it maps to durationMinutes,
-    // which onResize owns) — derive the new duration from start/end here and
-    // apply it the same way a drag-resize would, so the end-time field is a
-    // real alternative to that drag handle, not just a display.
-    if (onResize && newStartTime && editEndTime) {
-      const newDuration = timeToMinutes(editEndTime) - timeToMinutes(newStartTime);
-      if (newDuration >= MIN_DURATION_MINUTES && newDuration !== task.durationMinutes) {
-        onResize(task.id, newDuration);
-      }
+    // The end time becomes a duration and is saved in the same call as the
+    // start and title, so Google gets one consistent update (a separate
+    // resize call used to resend the old start time right after).
+    let durationMinutes: number | undefined;
+    if (newStartTime && editEndTime) {
+      const d = timeToMinutes(editEndTime) - timeToMinutes(newStartTime);
+      if (d >= MIN_DURATION_MINUTES) durationMinutes = d;
     }
+    onEdit(task.id, { content: editContent.trim() || task.content, startTime: newStartTime, durationMinutes });
     closeEdit();
   };
 

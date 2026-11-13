@@ -551,7 +551,12 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
   const openCleanup = () => setCleanupSelection(new Set(scheduledInViewedWeek.map(t => t.id)));
   const applyCleanup = () => {
     if (!cleanupSelection) return;
-    setTasks(prev => prev.map(t => cleanupSelection.has(t.id) ? { ...t, startTime: undefined } : t));
+    // The Google Calendar side goes too, like a drag back to the bank —
+    // otherwise the old event stayed in Google and came back as a busy block.
+    removeSyncedEvents([...cleanupSelection]);
+    // A grid-only event sent to the bank becomes a real task, so it shows in
+    // the bank, the list and the stats alike (it used to appear in the bank only).
+    setTasks(prev => prev.map(t => cleanupSelection.has(t.id) ? { ...t, startTime: undefined, isCalendarOnly: false } : t));
     setCleanupSelection(null);
   };
 
@@ -749,7 +754,7 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
       const startDateTime = formatLocalDateTime(weekStart, dayIndex, time);
       const existing = syncedEvents[syncKey];
       if (existing) {
-        await updateCalendarEvent(existing.calendarId, existing.eventId, startDateTime, duration);
+        await updateCalendarEvent(existing.calendarId, existing.eventId, startDateTime, duration, content);
         const info: SyncedEventInfo = { ...existing, syncedAt: new Date().toISOString() };
         saveSyncedEvent(syncKey, info);
         setSyncedEvents(prev => ({ ...prev, [syncKey]: info }));
@@ -837,6 +842,41 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
     });
   }, [tasks, gcalConnected, calendars, syncedEvents, syncTaskToCalendar]);
 
+  // The List view moves a task to another day by changing its dayId only
+  // (it knows nothing about Google Calendar), so a scheduled task dragged to
+  // another day there kept its event on the old day in Google. Follow those
+  // day changes here and move the event too.
+  const lastDayRef = useRef<{ weekKey: string; days: Map<string, string> }>({ weekKey: '', days: new Map() });
+  useEffect(() => {
+    const prev = lastDayRef.current;
+    const days = new Map(tasks.filter(t => !t.isDaily && t.startTime).map(t => [t.id, t.dayId]));
+    lastDayRef.current = { weekKey, days };
+    if (prev.weekKey !== weekKey || plannerView !== 'list') return;
+    tasks.forEach(t => {
+      const was = prev.days.get(t.id);
+      if (was && was !== t.dayId && syncedEvents[t.id]) listMovedRef.current.add(t.id);
+    });
+    if (listMovedRef.current.size === 0) return;
+    // A drag passes over several columns; wait until it settles, then send
+    // Google only the final day.
+    const timer = setTimeout(() => {
+      const ids = [...listMovedRef.current];
+      listMovedRef.current.clear();
+      ids.forEach(id => {
+        const t = tasksRef.current.find(x => x.id === id);
+        if (!t || t.isDaily || !t.startTime) return;
+        const dayIndex = DAYS.findIndex(d => d.id === t.dayId);
+        syncTaskToCalendarRef.current(t.id, t.content, dayIndex, t.startTime, t.durationMinutes ?? 30, t.calendarId);
+      });
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [tasks, weekKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const listMovedRef = useRef<Set<string>>(new Set());
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
+  const syncTaskToCalendarRef = useRef(syncTaskToCalendar);
+  syncTaskToCalendarRef.current = syncTaskToCalendar;
+
   // ── Task mutations ───────────────────────────────────────────────────────
 
   const addUnscheduledTask = useCallback(async (text: string) => {
@@ -905,11 +945,26 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
   // these previously had no delete affordance at all).
   const deleteBusyEvent = useCallback((ev: GCalBusyEvent) => {
     if (!confirm(`Delete "${ev.title}" from Google Calendar? This can't be undone.`)) return;
-    deleteCalendarEvent(ev.calendarId, ev.id).catch(() => {});
+    let removedFrom: string | null = null;
     setBusyEventsByDay(prev => {
       const next: Record<string, GCalBusyEvent[]> = {};
-      for (const [dayId, events] of Object.entries(prev)) next[dayId] = events.filter(e => e.id !== ev.id);
+      for (const [dayId, events] of Object.entries(prev)) {
+        if (events.some(e => e.id === ev.id)) removedFrom = dayId;
+        next[dayId] = events.filter(e => e.id !== ev.id);
+      }
       return next;
+    });
+    deleteCalendarEvent(ev.calendarId, ev.id).catch(err => {
+      // Before, a failed delete was ignored: the block vanished but the event
+      // stayed in Google and came back on the next refresh.
+      console.error('[App] failed to delete busy event:', err);
+      const dayId = removedFrom;
+      if (dayId) {
+        setBusyEventsByDay(prev => (prev[dayId] ?? []).some(e => e.id === ev.id)
+          ? prev
+          : { ...prev, [dayId]: [...(prev[dayId] ?? []), ev] });
+      }
+      alert(`מחיקת האירוע מהיומן נכשלה: ${err?.message ?? err}`);
     });
   }, []);
 
@@ -917,16 +972,21 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
   // patches Google Calendar directly and updates local state optimistically,
   // the same as a task resize, just without a local Task record to update.
   const resizeBusyEvent = useCallback((ev: GCalBusyEvent, durationMinutes: number) => {
-    updateCalendarEvent(ev.calendarId, ev.id, ev.start, durationMinutes)
-      .catch(err => console.error('[App] failed to resize busy event:', err));
     const newEnd = new Date(new Date(ev.start).getTime() + durationMinutes * 60_000).toISOString();
-    setBusyEventsByDay(prev => {
+    const setEnd = (end: string) => setBusyEventsByDay(prev => {
       const next: Record<string, GCalBusyEvent[]> = {};
       for (const [dayId, events] of Object.entries(prev)) {
-        next[dayId] = events.map(e => e.id === ev.id ? { ...e, end: newEnd } : e);
+        next[dayId] = events.map(e => e.id === ev.id ? { ...e, end } : e);
       }
       return next;
     });
+    setEnd(newEnd);
+    updateCalendarEvent(ev.calendarId, ev.id, ev.start, durationMinutes)
+      .catch(err => {
+        console.error('[App] failed to resize busy event:', err);
+        setEnd(ev.end);
+        alert(`שינוי משך האירוע ביומן נכשל: ${err?.message ?? err}`);
+      });
   }, []);
 
   // Reassign a real Google Calendar event (synced in, not created here) to a
@@ -998,7 +1058,16 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
     const task = tasks.find(t => t.id === realId);
     if (!task) return;
     if (task.startTime) {
-      const keys = task.isDaily ? DAYS.map(d => `${realId}_${d.id}`) : [realId];
+      // A daily task has one copy per week, each with its own Google events;
+      // removing only this week's left the other weeks' events in Google,
+      // where they came back as plain blocks ("I deleted it and it's back").
+      const copyIds = task.isDaily
+        ? Object.values(storageData.tasksByWeek).flat()
+          .filter(t => t.isDaily && t.content === task.content && t.dayId === task.dayId)
+          .map(t => t.id)
+        : [realId];
+      if (!copyIds.includes(realId)) copyIds.push(realId);
+      const keys = task.isDaily ? copyIds.flatMap(cid => DAYS.map(d => `${cid}_${d.id}`)) : [realId];
       removeSyncedEvents(keys);
     }
     if (task.isWeekly && task.recurId) {
@@ -1030,7 +1099,7 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
     } else {
       setTasks(prev => prev.filter(t => t.id !== realId));
     }
-  }, [tasks, setTasks, setStorageData, removeSyncedEvents, stopWeeklySeries]);
+  }, [tasks, storageData.tasksByWeek, setTasks, setStorageData, removeSyncedEvents, stopWeeklySeries]);
 
   // Duplicates onto the same day/time as a one-off (not recurring, even if the
   // original is isDaily) — it lands stacked side by side with the original
@@ -1124,12 +1193,16 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
     setTasks(prev => prev.map(t => t.id === realId ? { ...t, color } : t));
   }, [setTasks]);
 
-  const editTask = useCallback((id: string, updates: { content?: string; startTime?: string }) => {
+  const editTask = useCallback((id: string, updates: { content?: string; startTime?: string; durationMinutes?: number }) => {
     const realId = getRealId(id);
     const task = tasks.find(t => t.id === realId);
     if (!task) return;
     const newContent = updates.content?.trim() || task.content;
     const newStartTime = updates.startTime ?? task.startTime;
+    // Start, end and title are saved together. Before, the end time went
+    // through a separate resize call that still held the old start and
+    // title, and could send Google the old values right after the new ones.
+    const newDuration = updates.durationMinutes ?? task.durationMinutes;
 
     if (task.isDaily) {
       // A daily task is stored as one copy per week, matched across weeks by
@@ -1150,18 +1223,18 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
             wk,
             wkTasks.map(t =>
               t.isDaily && `${t.content}|${t.dayId}` === oldKey
-                ? { ...t, content: newContent, startTime: newStartTime }
+                ? { ...t, content: newContent, startTime: newStartTime, durationMinutes: newDuration }
                 : t,
             ),
           ]),
         ),
       }));
     } else {
-      setTasks(prev => prev.map(t => t.id === realId ? { ...t, content: newContent, startTime: newStartTime } : t));
+      setTasks(prev => prev.map(t => t.id === realId ? { ...t, content: newContent, startTime: newStartTime, durationMinutes: newDuration } : t));
     }
 
     if (!newStartTime) return;
-    const duration = task.durationMinutes ?? 30;
+    const duration = newDuration ?? 30;
     if (task.isDaily) {
       DAYS.forEach((d, idx) => {
         syncTaskToCalendar(`${realId}_${d.id}`, newContent, idx, newStartTime, duration, task.calendarId);
@@ -1216,8 +1289,10 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
         };
         saveSyncedEvent(key, info);
         setSyncedEvents(prev => ({ ...prev, [key]: info }));
-      } catch (err) {
+      } catch (err: any) {
         console.error('[App] failed to move task to new calendar:', key, err);
+        alert(`העברת המשימה ליומן אחר נכשלה: ${err?.message ?? err}`);
+        return;
       }
     }
   }, [tasks, setTasks, syncedEvents, calendars, gcalConnected, weekStart]);
@@ -1316,16 +1391,24 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
       const dayIndex = DAYS.findIndex(d => d.id === dayId);
       const duration = Math.max(15, Math.round((new Date(found.end).getTime() - new Date(found.start).getTime()) / 60_000));
       const startDateTime = formatLocalDateTime(weekStart, dayIndex, time);
-      updateCalendarEvent(found.calendarId, found.id, startDateTime, duration)
-        .catch(err => console.error('[App] failed to reschedule busy event:', err));
       const newStart = new Date(startDateTime);
       const newEnd = new Date(newStart.getTime() + duration * 60_000);
-      setBusyEventsByDay(prev => {
+      const place = (ev: GCalBusyEvent, toDay: string) => setBusyEventsByDay(prev => {
         const next: Record<string, GCalBusyEvent[]> = {};
         for (const [dId, evs] of Object.entries(prev)) next[dId] = evs.filter(e => e.id !== evId);
-        (next[dayId] ??= []).push({ ...found, start: newStart.toISOString(), end: newEnd.toISOString() });
+        (next[toDay] ??= []).push(ev);
         return next;
       });
+      const fromDay = Object.entries(busyEventsByDay).find(([, evs]) => evs.some(e => e.id === evId))?.[0] ?? dayId;
+      place({ ...found, start: newStart.toISOString(), end: newEnd.toISOString() }, dayId);
+      updateCalendarEvent(found.calendarId, found.id, startDateTime, duration)
+        .catch(err => {
+          // Before, only logged: the block sat in its new place while Google
+          // kept the old time, and it jumped back on the next refresh.
+          console.error('[App] failed to reschedule busy event:', err);
+          place(found, fromDay);
+          alert(`הזזת האירוע ביומן נכשלה: ${err?.message ?? err}`);
+        });
       return;
     }
 
@@ -1363,7 +1446,9 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
       if (!task.startTime) return;
       const keys = task.isDaily ? DAYS.map(d => `${realAid}_${d.id}`) : [realAid];
       removeSyncedEvents(keys);
-      setTasks(prev => prev.map(t => t.id === realAid ? { ...t, startTime: undefined } : t));
+      // A grid-only event dropped on the bank becomes a real task, so it is
+      // in the list and stats too, not only in the bank.
+      setTasks(prev => prev.map(t => t.id === realAid ? { ...t, startTime: undefined, isCalendarOnly: false } : t));
       return;
     }
 

@@ -18,6 +18,19 @@ const DAY_IDS = DAYS.map(d => d.id);
 // only show up in the calendar view, which covers the full week.
 const LIST_VIEW_DAYS = DAYS.filter(d => d.id !== 'fri' && d.id !== 'sat');
 
+/** The one-off tasks one day's list column actually shows, in screen order. */
+function visibleDayTasks(all: Task[], dayId: string): Task[] {
+  return all
+    .filter(t => t.dayId === dayId && !t.isDaily && !t.isCalendarOnly)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+}
+
+/** Writes 0..n-1 as sortOrder for the given tasks, in the given order. */
+function renumber(all: Task[], ordered: Task[]): Task[] {
+  const pos = new Map(ordered.map((t, i) => [t.id, i]));
+  return all.map(t => pos.has(t.id) ? { ...t, sortOrder: pos.get(t.id)! } : t);
+}
+
 function genId(): string {
   return Math.random().toString(36).substr(2, 9);
 }
@@ -111,7 +124,7 @@ export function DayListView({
     const translated = await translateText(text);
     const newId = genId();
     setTasks(prev => {
-      const sortOrder = prev.filter(t => t.dayId === dayId && !t.isDaily).length;
+      const sortOrder = visibleDayTasks(prev, dayId).reduce((m, t) => Math.max(m, (t.sortOrder ?? 0) + 1), 0);
       return [...prev, {
         id: newId, content: translated,
         originalText: /[֐-׿]/.test(text) ? text : undefined,
@@ -121,19 +134,18 @@ export function DayListView({
   }, [setTasks]);
 
   const moveTask = useCallback((id: string, direction: 'up' | 'down') => {
+    // Works on the column as shown (sorted, without hidden grid-only events
+    // or daily tasks) and renumbers it. Before, it swapped with neighbours in
+    // storage order, often an invisible item or one with the same sortOrder,
+    // so the arrows seemed to do nothing.
     setTasks(prev => {
       const task = prev.find(t => t.id === id);
       if (!task) return prev;
-      const dayTasks = prev.filter(t => t.dayId === task.dayId);
+      const dayTasks = visibleDayTasks(prev, task.dayId);
       const idx = dayTasks.findIndex(t => t.id === id);
       const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
-      if (swapIdx < 0 || swapIdx >= dayTasks.length) return prev;
-      const other = dayTasks[swapIdx];
-      return prev.map(t => {
-        if (t.id === id) return { ...t, sortOrder: other.sortOrder };
-        if (t.id === other.id) return { ...t, sortOrder: task.sortOrder };
-        return t;
-      });
+      if (idx < 0 || swapIdx < 0 || swapIdx >= dayTasks.length) return prev;
+      return renumber(prev, arrayMove(dayTasks, idx, swapIdx));
     });
   }, [setTasks]);
 
@@ -168,7 +180,7 @@ export function DayListView({
       const targetDay = (DAY_IDS as string[]).includes(oid) ? oid : tasks.find(t => t.id === getRealId(oid))?.dayId;
       if (!targetDay) return;
       setTasks(prev => {
-        const sortOrder = prev.filter(t => t.dayId === targetDay && !t.isDaily).length;
+        const sortOrder = visibleDayTasks(prev, targetDay).reduce((m, t) => Math.max(m, (t.sortOrder ?? 0) + 1), 0);
         return [...prev, {
           id: genId(), content: lib.content, originalText: lib.originalText,
           status: 'none', color: lib.color ?? 'none',
@@ -182,9 +194,15 @@ export function DayListView({
     if (active.id !== over.id && !(DAY_IDS as string[]).includes(oid)) {
       const realAid = getRealId(aid), realOid = getRealId(oid);
       if (tasks.find(t => t.id === realAid)?.isDaily) return;
+      // The column is drawn by sortOrder, so the new order has to be written
+      // there. Before, only the array order changed and the dropped task
+      // jumped back to its old place.
       setTasks(prev => {
-        const oi = prev.findIndex(t => t.id === realAid), ni = prev.findIndex(t => t.id === realOid);
-        return oi > -1 && ni > -1 ? arrayMove(prev, oi, ni) : prev;
+        const moving = prev.find(t => t.id === realAid);
+        if (!moving) return prev;
+        const dayTasks = visibleDayTasks(prev, moving.dayId);
+        const oi = dayTasks.findIndex(t => t.id === realAid), ni = dayTasks.findIndex(t => t.id === realOid);
+        return oi > -1 && ni > -1 ? renumber(prev, arrayMove(dayTasks, oi, ni)) : prev;
       });
     }
   }, [tasks, setTasks, libraryTasks]);

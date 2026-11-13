@@ -526,12 +526,16 @@ export async function updateCalendarEvent(
   eventId: string,
   startDateTime: string, // ISO local datetime e.g. "2026-03-22T10:00"
   durationMinutes = 30,
+  // When given, the event's title is updated too — renaming a task in the
+  // app previously left the old title on the Google Calendar event.
+  title?: string,
 ): Promise<{ id: string; htmlLink: string }> {
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const start = new Date(startDateTime);
   const end = new Date(start.getTime() + durationMinutes * 60 * 1000);
 
   const body = {
+    ...(title ? { summary: title } : {}),
     start: { dateTime: start.toISOString(), timeZone: tz },
     end: { dateTime: end.toISOString(), timeZone: tz },
   };
@@ -597,8 +601,15 @@ export async function deleteCalendarEvent(calendarId: string, eventId: string): 
       method: 'DELETE',
     });
   } catch (err) {
-    // Event may already be gone (deleted directly in Google Calendar) — not fatal.
-    console.warn('[googleCalendar] failed to delete event:', eventId, err);
+    // Event already gone (deleted directly in Google Calendar) — not fatal.
+    // Any other failure is passed on, so the screen can say the delete
+    // didn't happen instead of hiding an event that is still in Google.
+    const msg = String((err as any)?.message ?? err);
+    if (/not found|has been deleted|API error (404|410)/i.test(msg)) {
+      console.warn('[googleCalendar] event already gone:', eventId);
+      return;
+    }
+    throw err;
   }
 }
 

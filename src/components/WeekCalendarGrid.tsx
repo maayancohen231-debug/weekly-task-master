@@ -31,7 +31,7 @@ interface WeekCalendarGridProps {
   syncedEvents?: Record<string, SyncedEventInfo>;
   onDelete: (id: string) => void;
   onDuplicate?: (id: string) => void;
-  onEdit?: (id: string, updates: { content?: string; startTime?: string }) => void;
+  onEdit?: (id: string, updates: { content?: string; startTime?: string; durationMinutes?: number }) => void;
   onSetColor: (id: string, color: TaskColor) => void;
   onResize?: (id: string, durationMinutes: number) => void;
   calendars?: GCalCalendar[];
