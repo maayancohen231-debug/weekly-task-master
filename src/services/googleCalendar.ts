@@ -309,6 +309,17 @@ export function markGmailDisconnected(): void {
  * Calendar keeps working exactly as before. Read-only: nothing is ever sent.
  */
 export async function connectGmail(): Promise<GCalToken> {
+  const token = await connectWithExtraScope(GMAIL_SCOPE, 'Gmail access was not granted');
+  localStorage.setItem(GMAIL_FLAG_KEY, '1');
+  return token;
+}
+
+/**
+ * One popup that adds `extraScope` on top of Calendar (incremental consent:
+ * everything granted before stays granted). The new refresh token covers all
+ * of them, so Calendar keeps working exactly as before.
+ */
+export async function connectWithExtraScope(extraScope: string, notGrantedMessage = 'Permission was not granted'): Promise<GCalToken> {
   if (!(await checkPersistentConfigured())) throw new Error('Server not configured for persistent Google access');
   await loadGISScript();
   const google = (window as any).google;
@@ -317,12 +328,12 @@ export async function connectGmail(): Promise<GCalToken> {
   const code = await new Promise<string>((resolve, reject) => {
     const client = google.accounts.oauth2.initCodeClient({
       client_id: GOOGLE_CLIENT_ID,
-      scope: `${SCOPE} ${GMAIL_SCOPE}`,
+      scope: `${SCOPE} ${extraScope}`,
       include_granted_scopes: true,
       ux_mode: 'popup',
       callback: (resp: { code?: string; error?: string; scope?: string }) => {
         if (resp.error || !resp.code) return reject(new Error(resp.error ?? 'OAuth failed'));
-        if (resp.scope && !resp.scope.includes(GMAIL_SCOPE)) return reject(new Error('Gmail access was not granted'));
+        if (resp.scope && !resp.scope.includes(extraScope)) return reject(new Error(notGrantedMessage));
         resolve(resp.code);
       },
       error_callback: (err: { type?: string; message?: string }) => reject(new Error(err?.message ?? err?.type ?? 'Popup closed')),
@@ -341,7 +352,6 @@ export async function connectGmail(): Promise<GCalToken> {
   }
   const data = await res.json();
   if (data.refresh_token) storeRefreshToken(data.refresh_token);
-  localStorage.setItem(GMAIL_FLAG_KEY, '1');
   return storeToken({ access_token: data.access_token, expires_in: data.expires_in ?? 3600 });
 }
 

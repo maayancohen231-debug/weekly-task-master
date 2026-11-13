@@ -27,6 +27,8 @@ import { DailyGoalsBar } from '@/components/DailyGoalsBar';
 import { DayListView } from '@/components/DayListView';
 import { CalendarKeywordsModal } from '@/components/CalendarKeywordsModal';
 import { MorningBrief, BRIEF_SHOWN_KEY, localDayKey } from '@/components/MorningBrief';
+import { CloudSyncButton } from '@/components/CloudSyncButton';
+import { onCloudApplied, startCloudSync } from '@/services/cloudSync';
 import { translateText } from '@/lib/translate';
 import { parseQuickEventText } from '@/lib/parseQuickEvent';
 import { parseSlotId, BANK_ID, startAfterEndsIn, timeToMinutes } from '@/lib/calendar-grid';
@@ -530,6 +532,16 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  // Cloud storage (R-199): start syncing, and when data from another device
+  // arrives, load it into the screen the same way as another tab's save.
+  useEffect(() => {
+    startCloudSync();
+    return onCloudApplied(() => {
+      lastSavedRef.current = localStorage.getItem(STORAGE_KEY);
+      setStorageData(loadStorage());
+    });
   }, []);
 
   const setTasks = useCallback((updater: (prev: Task[]) => Task[]) => {
@@ -1535,6 +1547,7 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
           )}
 
           <div className="flex items-center gap-2 shrink-0">
+            <CloudSyncButton />
             <button
               onClick={() => setShowBrief(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/30 rounded-xl transition-base"
