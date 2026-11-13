@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useReloadOnExternalChange } from '@/lib/useReloadOnExternalChange';
 import {
   AlertTriangle, BookOpen, CalendarClock, CalendarDays, Check, ChevronDown, ChevronUp,
   Circle, Clock, Eye, FileText, GraduationCap, ListChecks, Plus, Trash2, Video,
@@ -367,6 +368,7 @@ export function UniversityStudies() {
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* ignore */ }
   }, [state]);
+  useReloadOnExternalChange(STORAGE_KEY, () => setState(loadState()));
 
   const today = todayISO();
   const thisWeek = weekStartISO(today);

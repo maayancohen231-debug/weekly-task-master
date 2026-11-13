@@ -1031,7 +1031,9 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
         const msg = String(err?.message ?? err);
         alert(/organizer|forbidden|permission|writer/i.test(msg)
           ? 'אי אפשר להעביר את האירוע הזה ליומן אחר: מישהו אחר הזמין אותך אליו, ורק מי שיצר אותו יכול להעביר אותו.'
-          : `העברת האירוע ליומן אחר נכשלה: ${msg}`);
+          : /failed to fetch|networkerror|load failed/i.test(msg)
+            ? 'אין חיבור לאינטרנט, האירוע נשאר ביומן הקודם. אפשר לנסות שוב כשהחיבור יחזור.'
+            : `העברת האירוע ליומן אחר נכשלה: ${msg}`);
       });
   }, [calendars]);
 

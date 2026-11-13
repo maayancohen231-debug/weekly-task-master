@@ -142,12 +142,20 @@ export function mergeKeys(local: Keys, cloud: Keys): Keys {
 
 async function drive(url: string, init: RequestInit = {}): Promise<Response> {
   const token = await getValidToken();
-  const res = await fetch(url, { ...init, headers: { Authorization: `Bearer ${token}`, ...(init.headers ?? {}) } });
+  let res: Response;
+  try {
+    res = await fetch(url, { ...init, headers: { Authorization: `Bearer ${token}`, ...(init.headers ?? {}) } });
+  } catch {
+    throw new Error('אין חיבור לאינטרנט. השמירה בענן תמשיך לבד כשהחיבור יחזור.');
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const msg: string = body?.error?.message ?? `Drive error ${res.status}`;
     if (/has not been used|is disabled|accessNotConfigured/i.test(msg)) {
       throw new Error('צריך להפעיל את Google Drive API בפרויקט של Google Cloud.');
+    }
+    if (res.status === 429 || /rate ?limit|quota/i.test(msg)) {
+      throw new Error('גוגל ביקש להאט לרגע. השמירה בענן תנסה שוב לבד.');
     }
     if (res.status === 401 || res.status === 403) {
       throw new Error('אין הרשאה לשמירה בענן. צריך ללחוץ שוב על "שמירה בענן".');
@@ -227,13 +235,16 @@ export function onCloudApplied(fn: () => void): () => void {
 }
 
 async function syncOnce(): Promise<void> {
+  const fileId = await findFile(readMeta());
+  const cloud = fileId ? await readFile(fileId) : null;
+
+  // Read this device's data only after the network calls: a change she made
+  // while they were running must be part of what is merged or pushed, or the
+  // cloud copy written below would erase it.
   const meta = readMeta();
   const local = snapshot();
   const localHash = hashKeys(local);
   const localDirty = meta.syncedHash ? meta.syncedHash !== localHash : !isEmpty(local);
-
-  const fileId = await findFile(meta);
-  const cloud = fileId ? await readFile(fileId) : null;
 
   const push = async (keys: Keys) => {
     const file: CloudFile = { v: 1, savedAt: new Date().toISOString(), keys };
@@ -267,6 +278,14 @@ async function syncOnce(): Promise<void> {
   await push(snapshot());
 }
 
+/** Two open tabs must not sync at the same moment: on the first sync both
+ * would create their own cloud file, and later rounds would read and write
+ * different files. The browser's Web Locks make the other tab wait. */
+function oneTabAtATime(fn: () => Promise<void>): Promise<void> {
+  const locks = (navigator as Navigator & { locks?: LockManager }).locks;
+  return locks?.request ? locks.request('wtm-cloud-sync', () => fn()).then(() => undefined) : fn();
+}
+
 /** Pull + push now. Safe to call often; overlapping calls are folded into one more run. */
 export function syncNow(): Promise<void> {
   if (!isCloudOn()) return Promise.resolve();
@@ -276,7 +295,7 @@ export function syncNow(): Promise<void> {
     try {
       do {
         again = false;
-        await syncOnce();
+        await oneTabAtATime(syncOnce);
       } while (again);
       setStatus({ state: 'ok', at: new Date().toISOString() });
     } catch (err: any) {

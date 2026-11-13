@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowRight, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
+import { useReloadOnExternalChange } from '@/lib/useReloadOnExternalChange';
 import {
   GANTT_SEED,
   type GanttBar, type GanttData, type GanttYear,
@@ -121,6 +122,7 @@ export function GoalsGantt({ onBack }: Props) {
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch { /* ignore */ }
   }, [data]);
+  useReloadOnExternalChange(STORAGE_KEY, () => setData(load()));
   useEffect(() => {
     try { localStorage.setItem(YEAR_KEY, yearId); } catch { /* ignore */ }
   }, [yearId]);

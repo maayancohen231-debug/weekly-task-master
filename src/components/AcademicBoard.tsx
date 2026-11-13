@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, ArrowLeft, CalendarDays, GraduationCap, ChevronDown, ChevronUp } from 'lucide-react';
 import { UniversityStudies } from '@/components/UniversityStudies';
+import { useReloadOnExternalChange } from '@/lib/useReloadOnExternalChange';
 
 const STORAGE_KEY = 'academic-board-data';
 
@@ -80,18 +81,21 @@ interface Props {
   onBack: () => void;
 }
 
+function loadAcademic(): AcademicData {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return { ...DEFAULT_DATA, ...(JSON.parse(raw) as AcademicData) };
+  } catch { /* ignore */ }
+  return DEFAULT_DATA;
+}
+
 export function AcademicBoard({ onBack }: Props) {
-  const [data, setData] = useState<AcademicData>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return { ...DEFAULT_DATA, ...(JSON.parse(raw) as AcademicData) };
-    } catch { /* ignore */ }
-    return DEFAULT_DATA;
-  });
+  const [data, setData] = useState<AcademicData>(loadAcademic);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch { /* ignore */ }
   }, [data]);
+  useReloadOnExternalChange(STORAGE_KEY, () => setData(loadAcademic()));
 
   // The old free-form tracker stays available, folded away unless it was used.
   const [showTracker, setShowTracker] = useState(
