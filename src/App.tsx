@@ -27,6 +27,7 @@ import { DailyGoalsBar } from '@/components/DailyGoalsBar';
 import { DayListView } from '@/components/DayListView';
 import { CalendarKeywordsModal } from '@/components/CalendarKeywordsModal';
 import { MorningBrief, BRIEF_SHOWN_KEY, localDayKey } from '@/components/MorningBrief';
+import { StudyDeadlinesPanel } from '@/components/UniversityStudies';
 import { CloudSyncButton } from '@/components/CloudSyncButton';
 import { onCloudApplied, startCloudSync } from '@/services/cloudSync';
 import { translateText } from '@/lib/translate';
@@ -1727,6 +1728,7 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
           <DndContext sensors={sensors} collisionDetection={pointerWithin}
             onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2 scroll-thin">
+              <StudyDeadlinesPanel onOpenStudies={onNavigateAcademic} />
               <QuickAddPanel onSubmit={quickAddFromChat} disabled={!gcalConnected} />
               <TaskSidebarPanel
                 tasks={bankTasksForPanel}
@@ -1808,7 +1810,7 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
             onDeleteLibraryTask={deleteLibraryTask}
             onSetLibraryColor={setLibraryTaskColor}
             onSetLibraryDuration={setLibraryTaskDuration}
-            sidebarBefore={<QuickAddPanel onSubmit={quickAddFromChat} disabled={!gcalConnected} />}
+            sidebarBefore={<><StudyDeadlinesPanel onOpenStudies={onNavigateAcademic} /><QuickAddPanel onSubmit={quickAddFromChat} disabled={!gcalConnected} /></>}
             sidebarAfter={
               <>
                 <StatsCard tasks={trackedTasks} progress={progress} />

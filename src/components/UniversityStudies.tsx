@@ -29,13 +29,13 @@ interface CourseInfo {
 }
 
 const COURSES: Record<CourseKey, CourseInfo> = {
-  psy:  { code: '10136', name: 'Introduction to Psychology', short: 'Psychology', meeting: 'Fri 08:30–11:00', color: '262 45% 58%' },
-  pers: { code: '10269', name: 'Personality: Theory and Research', short: 'Personality', meeting: 'Thu 19:15–21:15', color: '330 50% 58%' },
-  econ: { code: '10284', name: 'Basic Concepts in Econometrics', short: 'Econometrics', meeting: 'Mon 18:00–21:00', color: '205 60% 48%' },
-  isd:  { code: '20436', name: 'Principles of Information Systems Development', short: 'Info Systems', meeting: 'Wed 18:15–20:45', color: '28 75% 52%' },
-  stat: { code: '30112', name: 'Introduction to Statistics B', short: 'Statistics', meeting: 'Thu 18:15–20:45', color: '170 45% 38%' },
-  db:   { code: '20277', name: 'Database Systems', short: 'Databases', color: '0 55% 52%' },
-  other:{ code: '', name: 'Other', short: 'Other', color: '220 10% 50%' },
+  psy:  { code: '10136', name: 'מבוא לפסיכולוגיה', short: 'פסיכולוגיה', meeting: 'Fri 08:30–11:00', color: '262 45% 58%' },
+  pers: { code: '10269', name: 'אישיות: תאוריה ומחקר', short: 'אישיות', meeting: 'Thu 19:15–21:15', color: '330 50% 58%' },
+  econ: { code: '10284', name: 'מושגי יסוד באקונומטריקה', short: 'אקונומטריקה', meeting: 'Mon 18:00–21:00', color: '205 60% 48%' },
+  isd:  { code: '20436', name: 'עקרונות פיתוח מערכות מידע', short: 'מערכות מידע', meeting: 'Wed 18:15–20:45', color: '28 75% 52%' },
+  stat: { code: '30112', name: 'מבוא לסטטיסטיקה ב', short: 'סטטיסטיקה', meeting: 'Thu 18:15–20:45', color: '170 45% 38%' },
+  db:   { code: '20277', name: 'מערכות בסיסי־נתונים', short: 'בסיסי נתונים', color: '0 55% 52%' },
+  other:{ code: '', name: 'אחר', short: 'אחר', color: '220 10% 50%' },
 };
 
 const SESSION_TIME: Partial<Record<CourseKey, string>> = {
@@ -77,7 +77,7 @@ const SEED_ROWS: SeedRow[] = [
   ['28.11', A, 'econ', '02'],
   ['29.11', A, 'psy', '07'],
   // December 2026
-  ['1.12', 'exam', 'db', 'Exam – Database Systems (20277)', 'Includes extra time. Make sure you are registered for this exam date!'],
+  ['1.12', 'exam', 'db', 'Exam – מערכות בסיסי־נתונים (20277)', 'Includes extra time. Make sure you are registered for this exam date!'],
   ['2.12', S, 'isd'],
   ['3.12', S, 'stat'], ['3.12', S, 'pers'],
   ['5.12', A, 'pers', '02'],
@@ -154,27 +154,27 @@ const URGENT: { id: string; title: string; detail: string }[] = [
 interface CourseRow { code: string; name: string; meeting: string; warn?: string; course?: CourseKey; }
 
 const ENROLLED: CourseRow[] = [
-  { code: '10136', name: 'Introduction to Psychology', meeting: 'Fri 08:30–11:00', course: 'psy' },
-  { code: '10269', name: 'Personality: Theory and Research', meeting: 'Thu 19:15–21:15', course: 'pers' },
-  { code: '10284', name: 'Basic Concepts in Econometrics', meeting: 'Mon 18:00–21:00', warn: 'Deferral request "Handled"', course: 'econ' },
-  { code: '20436', name: 'Principles of Information Systems Development', meeting: 'Wed 18:15–20:45', warn: 'Deferral request "Handled"', course: 'isd' },
+  { code: '10136', name: 'מבוא לפסיכולוגיה', meeting: 'Fri 08:30–11:00', course: 'psy' },
+  { code: '10269', name: 'אישיות: תאוריה ומחקר', meeting: 'Thu 19:15–21:15', course: 'pers' },
+  { code: '10284', name: 'מושגי יסוד באקונומטריקה', meeting: 'Mon 18:00–21:00', warn: 'Deferral request "Handled"', course: 'econ' },
+  { code: '20436', name: 'עקרונות פיתוח מערכות מידע', meeting: 'Wed 18:15–20:45', warn: 'Deferral request "Handled"', course: 'isd' },
 ];
 
 const PENDING: CourseRow[] = [
-  { code: '30112', name: 'Introduction to Statistics B', meeting: 'Thu 18:15–20:45 (on the calendar)', course: 'stat' },
-  { code: '10523', name: 'Ethics in Management', meeting: '12.11, 18:00–20:30' },
-  { code: '20551', name: 'Introduction to Artificial Intelligence', meeting: '9.11, 18:00–21:00' },
+  { code: '30112', name: 'מבוא לסטטיסטיקה ב', meeting: 'Thu 18:15–20:45 (on the calendar)', course: 'stat' },
+  { code: '10523', name: 'מוסר בניהול', meeting: '12.11, 18:00–20:30' },
+  { code: '20551', name: 'מבוא לבינה מלאכותית', meeting: '9.11, 18:00–21:00' },
 ];
 
 const NOT_REGISTERED: CourseRow[] = [
-  { code: '20465', name: 'Systems Programming Lab', meeting: '—', warn: 'Not in the query' },
+  { code: '20465', name: 'מעבדה בתכנות מערכות', meeting: '—', warn: 'Not in the query' },
 ];
 
 const GRADE_IMPROVEMENT: { code: string; name: string; status: 'ok' | 'action' | 'waiting'; text: string }[] = [
-  { code: '10627', name: 'Price Theory A', status: 'ok', text: 'Approved (10.9)' },
-  { code: '20606', name: 'Programming and Data Analysis in Python', status: 'ok', text: 'Approved (10.9)' },
-  { code: '20277', name: 'Database Systems', status: 'action', text: 'Offered in 2026c, registration active. Exam 1.12.2026, 16:30–20:30. Not yet registered for an exam date – register.' },
-  { code: '30204', name: 'Statistical Inference', status: 'waiting', text: 'Passed to the Center for Academic Achievement, no final decision yet. Earlier reply: a paid grade improvement can be requested in 2027a.' },
+  { code: '10627', name: 'תורת המחירים א', status: 'ok', text: 'Approved (10.9)' },
+  { code: '20606', name: 'תכנות וניתוח נתונים בפייתון', status: 'ok', text: 'Approved (10.9)' },
+  { code: '20277', name: 'מערכות בסיסי־נתונים', status: 'action', text: 'Offered in 2026c, registration active. Exam 1.12.2026, 16:30–20:30. Not yet registered for an exam date – register.' },
+  { code: '30204', name: 'הסקה סטטיסטית', status: 'waiting', text: 'Passed to the Center for Academic Achievement, no final decision yet. Earlier reply: a paid grade improvement can be requested in 2027a.' },
 ];
 
 // ── Persistence ─────────────────────────────────────────────────────────────
@@ -255,7 +255,7 @@ function weekLabel(weekISO: string, thisWeek: string): string {
 }
 
 function itemTitle(i: TimelineItem): string {
-  if (i.kind === 'session') return i.custom ? i.label : `${COURSES[i.course].short} session`;
+  if (i.kind === 'session') return i.custom ? i.label : `${COURSES[i.course].short} · Session`;
   if (i.kind === 'assignment' && !i.custom) return `${COURSES[i.course].short} · ${i.label}`;
   return i.label;
 }
@@ -339,7 +339,7 @@ function DoneToggle({ item, done, onToggle, compact = false }: { item: TimelineI
       className={`inline-flex items-center justify-center gap-1.5 rounded-xl text-xs transition-base shrink-0 active:scale-[0.97]
         ${compact ? 'h-8 px-2.5' : 'h-9 px-3.5 min-w-[132px]'}
         ${done
-          ? 'bg-primary text-primary-foreground shadow-sm-custom hover:opacity-90'
+          ? 'bg-emerald-500 text-white shadow-sm-custom hover:bg-emerald-600'
           : 'bg-card text-foreground border border-border hover:border-primary/50 hover:bg-accent/50'}`}
     >
       {done ? <Check size={14} strokeWidth={2.5} /> : isSession ? <Eye size={14} /> : <Circle size={14} />}
@@ -424,7 +424,8 @@ export function UniversityStudies() {
   const visible = allItems.filter(i => {
     if (filter === 'assignment' && !(isDeliverable(i.kind) || i.kind === 'milestone')) return false;
     if (filter === 'session' && i.kind !== 'session') return false;
-    if (i.date < today) return showPast;
+    // Done items stay in view (light green) for two weeks; older ones under "Show past weeks".
+    if (i.date < today) return showPast || (isDone(i) && daysUntil(i.date) >= -14);
     return true;
   });
   const catchUpVisible = catchUp.filter(i =>
@@ -455,9 +456,9 @@ export function UniversityStudies() {
       <div
         key={item.id}
         className={`group flex flex-wrap sm:flex-nowrap items-center gap-x-4 gap-y-2 px-3 sm:px-4 py-3 rounded-2xl border transition-base
-          ${isToday ? 'bg-accent/50 border-primary/25' : 'bg-card border-border/50 hover:shadow-sm-custom hover:border-border'}`}
+          ${done ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800/50' : isToday ? 'bg-card border-primary/40 shadow-sm-custom' : 'bg-card border-border/50 hover:shadow-sm-custom hover:border-border'}`}
       >
-        <div className={`w-12 h-12 rounded-2xl flex flex-col items-center justify-center shrink-0 ${isToday ? 'bg-primary text-primary-foreground' : 'bg-muted/60 text-foreground'}`}>
+        <div className={`w-12 h-12 rounded-2xl flex flex-col items-center justify-center shrink-0 ${done ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200' : isToday ? 'bg-primary text-primary-foreground' : 'bg-muted/60 text-foreground'}`}>
           <span className="text-base font-semibold leading-none tabular-nums">{d.getDate()}</span>
           <span className={`text-[10px] mt-0.5 ${isToday ? 'opacity-80' : 'text-muted-foreground'}`}>{DAYS[d.getDay()]}</span>
         </div>
@@ -467,12 +468,12 @@ export function UniversityStudies() {
               : item.kind === 'exam' ? <AlertTriangle size={14} className="text-primary shrink-0" />
               : item.kind === 'milestone' ? <GraduationCap size={14} className="text-muted-foreground shrink-0" />
               : <FileText size={14} className="text-muted-foreground shrink-0" />}
-            <span dir="auto" className={`text-sm text-foreground ${item.kind === 'exam' ? 'font-semibold' : ''} ${done ? 'text-muted-foreground line-through decoration-muted-foreground/40' : ''}`}>
+            <span dir="auto" className={`text-sm text-foreground ${item.kind === 'exam' ? 'font-semibold' : ''} ${done ? 'text-emerald-900 dark:text-emerald-100' : ''}`}>
               {itemTitle(item)}
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
-            <span>{COURSES[item.course].name}</span>
+            <span dir="rtl">{COURSES[item.course].name}</span>
             {item.time && <span className="inline-flex items-center gap-1 tabular-nums"><Clock size={11} />{item.time}</span>}
             {isToday ? <span className="text-primary">Today</span>
               : late ? <span className="text-[hsl(var(--status-red))]">{item.kind === 'session' ? 'Not watched yet' : 'Overdue'} · {relLabel(n)}</span>
@@ -685,7 +686,7 @@ export function UniversityStudies() {
                 <Card key={k} className="p-5">
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div>
-                      <h3 className="text-base font-semibold text-foreground">{c.name}</h3>
+                      <h3 dir="rtl" className="text-left text-base font-semibold text-foreground">{c.name}</h3>
                       <p className="text-xs text-muted-foreground mt-0.5">{c.code}{c.meeting ? ` · ${c.meeting}` : ''}</p>
                     </div>
                     <div className="text-right shrink-0">
@@ -699,7 +700,7 @@ export function UniversityStudies() {
                       const done = isDone(s);
                       const n = daysUntil(s.date);
                       return (
-                        <div key={s.id} className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-base ${done ? 'bg-accent/40' : n === 0 ? 'bg-accent/60' : 'hover:bg-muted/40'}`}>
+                        <div key={s.id} className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-base ${done ? 'bg-emerald-50 dark:bg-emerald-950/30' : n === 0 ? 'bg-accent/60' : 'hover:bg-muted/40'}`}>
                           <span className="w-16 text-sm tabular-nums text-foreground">{DAYS[parseISO(s.date).getDay()]} {fmtDM(s.date)}</span>
                           <span className="flex-1 min-w-0 text-xs text-muted-foreground truncate" dir="auto">
                             {s.custom ? s.label : n === 0 ? 'Today' : n < 0 && !done ? `Not watched yet · ${relLabel(n)}` : n > 0 ? relLabel(n) : ''}
@@ -763,7 +764,7 @@ export function UniversityStudies() {
                         return (
                           <div key={r.code} className="px-4 py-3 rounded-2xl bg-muted/35">
                             <div className="flex flex-wrap items-baseline gap-x-3">
-                              <span className="text-sm text-foreground flex-1 min-w-[160px]">{r.name}</span>
+                              <span dir="rtl" className="text-left text-sm text-foreground flex-1 min-w-[160px]">{r.name}</span>
                               <span className="text-xs text-muted-foreground tabular-nums">{r.code}</span>
                             </div>
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
@@ -788,7 +789,7 @@ export function UniversityStudies() {
                 {GRADE_IMPROVEMENT.map(g => (
                   <div key={g.code} className="px-4 py-3 rounded-2xl bg-muted/35">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm text-foreground flex-1 min-w-[140px]">{g.name}</span>
+                      <span dir="rtl" className="text-left text-sm text-foreground flex-1 min-w-[140px]">{g.name}</span>
                       <span className="text-xs text-muted-foreground tabular-nums">{g.code}</span>
                       <span className={`text-[11px] px-2 py-0.5 rounded-lg ${g.status === 'ok' ? 'bg-accent text-primary' : g.status === 'action' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
                         {g.status === 'ok' ? 'Approved' : g.status === 'action' ? 'Action needed' : 'Waiting'}
@@ -802,6 +803,70 @@ export function UniversityStudies() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Main tasks page: assignments due in the next 3 days ─────────────────────
+
+const DUE_SOON_DAYS = 3;
+
+/** Shown in the planner's side column: assignments/exams not yet submitted that are due within 3 days (or overdue up to a week). */
+export function StudyDeadlinesPanel({ onOpenStudies }: { onOpenStudies: () => void }) {
+  const [state, setState] = useState<StudiesState>(loadState);
+  useReloadOnExternalChange(STORAGE_KEY, () => setState(loadState()));
+  // Pick up marks made on the studies screen when coming back to this page.
+  useEffect(() => {
+    const reload = () => setState(loadState());
+    window.addEventListener('focus', reload);
+    window.addEventListener('hashchange', reload);
+    return () => { window.removeEventListener('focus', reload); window.removeEventListener('hashchange', reload); };
+  }, []);
+
+  const items = [...SEED_ITEMS, ...state.custom]
+    .filter(i => isDeliverable(i.kind) && !state.hidden[i.id])
+    .filter(i => { const n = daysUntil(i.date); return n <= DUE_SOON_DAYS && n >= -7; })
+    .sort((a, b) => a.date.localeCompare(b.date));
+  // Submitted ones stay (light green) until their due date passes.
+  const shown = items.filter(i => !state.itemDone[i.id] || daysUntil(i.date) >= 0);
+  if (shown.length === 0) return null;
+
+  const toggle = (id: string) => {
+    const next = { ...state, itemDone: { ...state.itemDone, [id]: !state.itemDone[id] } };
+    setState(next);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  };
+
+  return (
+    <div dir="rtl" className="bg-card rounded-2xl shadow-card border border-border/40 p-3 shrink-0">
+      <button onClick={onOpenStudies} className="w-full flex items-center gap-2 mb-2 text-right">
+        <GraduationCap size={15} className="text-primary shrink-0" />
+        <span className="flex-1 text-sm font-semibold text-foreground">מטלות להגשה</span>
+        <span className="text-[11px] text-muted-foreground">ללימודים ←</span>
+      </button>
+      <div className="space-y-1.5">
+        {shown.map(i => {
+          const done = !!state.itemDone[i.id];
+          const n = daysUntil(i.date);
+          const when = n < 0 ? `באיחור · ${fmtDM(i.date)}` : n === 0 ? 'היום' : n === 1 ? 'מחר' : `בעוד ${n} ימים · ${fmtDM(i.date)}`;
+          const what = i.kind === 'exam' ? 'בחינה' : i.custom ? i.label : `ממ"ן ${i.label.replace('Assignment ', '')}`;
+          return (
+            <div key={i.id} className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border transition-base ${done ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800/50' : n <= 0 ? 'bg-[hsl(var(--status-red-bg))] border-transparent' : 'bg-muted/40 border-transparent'}`}>
+              <button
+                onClick={() => toggle(i.id)}
+                title={done ? 'בטל "הוגש"' : 'סמני כהוגש'}
+                className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-base ${done ? 'bg-emerald-500 border-transparent text-white' : 'border-border bg-card hover:border-emerald-500'}`}
+              >
+                {done && <Check size={13} strokeWidth={3} />}
+              </button>
+              <div className="flex-1 min-w-0">
+                <div className="text-[13px] text-foreground truncate" dir="auto">{COURSES[i.course].short} · {what}</div>
+                <div className={`text-[11px] ${done ? 'text-emerald-700 dark:text-emerald-300' : n <= 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{done ? 'הוגש ✓' : when}</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
