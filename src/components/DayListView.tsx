@@ -9,7 +9,7 @@ import { DayColumn } from './DayColumn';
 import { TaskItem } from './TaskItem';
 import { LibraryPanel } from './LibraryPanel';
 import { translateText } from '@/lib/translate';
-import { DAYS, formatDayDate } from '@/lib/task-types';
+import { DAYS, formatDayDate, timeOnDay } from '@/lib/task-types';
 import type { Task, TaskColor, LibraryTask } from '@/lib/task-types';
 
 const DAY_IDS = DAYS.map(d => d.id);
@@ -104,7 +104,7 @@ export function DayListView({
           // secretly reading that same shared field instead of having its
           // own independent default.
           const dayStatus = (t.dailyStatuses?.[d.id] ?? 'none') as Task['status'];
-          map[d.id].push({ ...t, dayId: d.id, id: `${t.id}_${d.id}`, status: dayStatus });
+          map[d.id].push({ ...t, dayId: d.id, id: `${t.id}_${d.id}`, status: dayStatus, startTime: timeOnDay(t, d.id) });
         });
       } else if (map[t.dayId]) {
         map[t.dayId].push(t);

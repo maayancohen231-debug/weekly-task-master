@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useExclusivePopup } from '@/lib/useExclusivePopup';
 import { Sun, X, Mail, CalendarX, ListTodo, RefreshCw, ExternalLink, AlertTriangle } from 'lucide-react';
 import type { Task } from '@/lib/task-types';
-import { DAY_INDEX_TO_ID, getWeekKey, getWeekSunday } from '@/lib/task-types';
+import { DAY_INDEX_TO_ID, getWeekKey, getWeekSunday, timeOnDay } from '@/lib/task-types';
 import { BANK_ID } from '@/lib/calendar-grid';
 import { connectGmail, fetchWeekEvents, isGmailConnected } from '@/services/googleCalendar';
 import { fetchOpenEmails, type OpenEmail } from '@/services/gmail';
@@ -63,7 +63,7 @@ export function MorningBrief({ tasksByWeek, onClose, onGoogleConnected }: Props)
     const dayIndex = (id: string) => Object.entries(DAY_INDEX_TO_ID).find(([, v]) => v === id)?.[0];
     const byTime = (a: Task, b: Task) => (a.startTime ?? '99').localeCompare(b.startTime ?? '99') || a.sortOrder - b.sortOrder;
     return {
-      today: week.filter(t => (t.isDaily || t.dayId === todayId) && isOpen(t, todayId)).sort(byTime),
+      today: week.filter(t => (t.isDaily || t.dayId === todayId) && isOpen(t, todayId)).map(t => t.isDaily ? { ...t, startTime: timeOnDay(t, todayId) } : t).sort(byTime),
       earlier: week.filter(t => !t.isDaily && t.dayId !== BANK_ID && Number(dayIndex(t.dayId) ?? 99) < todayIdx && isOpen(t, t.dayId)),
       lastWeek: prev.filter(t => !t.isDaily && !t.isWeekly && t.dayId !== BANK_ID && isOpen(t, t.dayId)),
       bank: week.filter(t => t.dayId === BANK_ID && isOpen(t, t.dayId)),

@@ -34,7 +34,7 @@ import { parseQuickEventText } from '@/lib/parseQuickEvent';
 import { parseSlotId, BANK_ID, startAfterEndsIn, timeToMinutes } from '@/lib/calendar-grid';
 import {
   DAYS, DAY_INDEX_TO_ID, getWeekSunday, getWeekKey, formatDayDate, getMonthYear, getWeekRange, nextStatus,
-  formatLocalDateTime,
+  formatLocalDateTime, timeOnDay,
 } from '@/lib/task-types';
 import type { Task, LibraryTask, TaskColor, DailyGoal } from '@/lib/task-types';
 
@@ -719,7 +719,7 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
         DAYS.forEach(d => {
           // 'none' default, not t.status — see DayListView's tasksByDay.
           const dayStatus = (t.dailyStatuses?.[d.id] ?? 'none') as Task['status'];
-          map[d.id].push({ ...t, dayId: d.id, id: `${t.id}_${d.id}`, status: dayStatus });
+          map[d.id].push({ ...t, dayId: d.id, id: `${t.id}_${d.id}`, status: dayStatus, startTime: timeOnDay(t, d.id) });
         });
       } else if (map[t.dayId]) {
         map[t.dayId].push(t);
@@ -841,7 +841,7 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
         DAYS.forEach((d, idx) => {
           const key = `${t.id}_${d.id}`;
           if (!syncedEvents[key] && !pendingSyncRef.current.has(key)) {
-            syncTaskToCalendar(key, t.content, idx, t.startTime!, duration, t.calendarId);
+            syncTaskToCalendar(key, t.content, idx, timeOnDay(t, d.id)!, duration, t.calendarId);
           }
         });
       } else {
@@ -1178,7 +1178,7 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
     if (turningOn) {
       removeSyncedEvents([realId]);
       DAYS.forEach((d, idx) => {
-        syncTaskToCalendar(`${realId}_${d.id}`, task.content, idx, task.startTime!, duration, task.calendarId);
+        syncTaskToCalendar(`${realId}_${d.id}`, task.content, idx, timeOnDay({ ...task, isDaily: true }, d.id)!, duration, task.calendarId);
       });
     } else {
       removeSyncedEvents(DAYS.map(d => `${realId}_${d.id}`));
@@ -1212,7 +1212,19 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
     const task = tasks.find(t => t.id === realId);
     if (!task) return;
     const newContent = updates.content?.trim() || task.content;
-    const newStartTime = updates.startTime ?? task.startTime;
+    // A daily task edited from one day's block: a new time applies to that
+    // day only (her ask, R-238); title and length still apply to every day.
+    const editedDay = task.isDaily && id !== realId ? id.slice(realId.length + 1) : null;
+    const dayTimeChanged = !!editedDay && !!updates.startTime && updates.startTime !== timeOnDay(task, editedDay);
+    const newDailyTimes = dayTimeChanged
+      ? (() => {
+          const next = { ...(task.dailyTimes ?? {}) };
+          if (updates.startTime === task.startTime) delete next[editedDay!];
+          else next[editedDay!] = updates.startTime!;
+          return next;
+        })()
+      : task.dailyTimes;
+    const newStartTime = editedDay ? task.startTime : (updates.startTime ?? task.startTime);
     // Start, end and title are saved together. Before, the end time went
     // through a separate resize call that still held the old start and
     // title, and could send Google the old values right after the new ones.
@@ -1237,7 +1249,7 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
             wk,
             wkTasks.map(t =>
               t.isDaily && `${t.content}|${t.dayId}` === oldKey
-                ? { ...t, content: newContent, startTime: newStartTime, durationMinutes: newDuration }
+                ? { ...t, content: newContent, startTime: newStartTime, durationMinutes: newDuration, dailyTimes: newDailyTimes }
                 : t,
             ),
           ]),
@@ -1250,8 +1262,9 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
     if (!newStartTime) return;
     const duration = newDuration ?? 30;
     if (task.isDaily) {
+      const updated = { ...task, startTime: newStartTime, dailyTimes: newDailyTimes };
       DAYS.forEach((d, idx) => {
-        syncTaskToCalendar(`${realId}_${d.id}`, newContent, idx, newStartTime, duration, task.calendarId);
+        syncTaskToCalendar(`${realId}_${d.id}`, newContent, idx, timeOnDay(updated, d.id)!, duration, task.calendarId);
       });
     } else {
       const dayIndex = DAYS.findIndex(d => d.id === task.dayId);
@@ -1267,7 +1280,7 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
     if (!task.startTime) return;
     if (task.isDaily) {
       DAYS.forEach((d, idx) => {
-        syncTaskToCalendar(`${realId}_${d.id}`, task.content, idx, task.startTime!, durationMinutes, task.calendarId);
+        syncTaskToCalendar(`${realId}_${d.id}`, task.content, idx, timeOnDay(task, d.id)!, durationMinutes, task.calendarId);
       });
     } else {
       const dayIndex = DAYS.findIndex(d => d.id === task.dayId);
@@ -1292,7 +1305,7 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
     for (const key of keys) {
       const dayId = task.isDaily ? key.slice(realId.length + 1) : task.dayId;
       const dayIndex = DAYS.findIndex(d => d.id === dayId);
-      const startDateTime = formatLocalDateTime(weekStart, dayIndex, task.startTime);
+      const startDateTime = formatLocalDateTime(weekStart, dayIndex, timeOnDay(task, dayId)!);
       const existing = syncedEvents[key];
       try {
         if (existing) await deleteCalendarEvent(existing.calendarId, existing.eventId);
@@ -1470,9 +1483,27 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
     const slot = dropSlot;
     if (!slot) return;
     const { dayId, time } = slot;
-    if (task.startTime === time && (task.isDaily || task.dayId === dayId)) return; // no-op
+    // One day's block of a scheduled daily task: move only that day (R-238).
+    // The block keeps its own day; only its time changes.
+    const draggedDay = task.isDaily && task.startTime && aid !== realAid ? aid.slice(realAid.length + 1) : null;
+    if (draggedDay) {
+      if (timeOnDay(task, draggedDay) === time) return; // no-op
+      setTasks(prev => prev.map(t => {
+        if (t.id !== realAid) return t;
+        const dailyTimes = { ...(t.dailyTimes ?? {}) };
+        if (time === t.startTime) delete dailyTimes[draggedDay];
+        else dailyTimes[draggedDay] = time;
+        return { ...t, dailyTimes };
+      }));
+      const idx = DAYS.findIndex(d => d.id === draggedDay);
+      syncTaskToCalendar(`${realAid}_${draggedDay}`, task.content, idx, time, duration, task.calendarId);
+      return;
+    }
 
-    setTasks(prev => prev.map(t => t.id === realAid ? { ...t, dayId: t.isDaily ? t.dayId : dayId, startTime: time } : t));
+    if (task.startTime === time && !task.dailyTimes && (task.isDaily || task.dayId === dayId)) return; // no-op
+
+    // Scheduling the whole task (from the bank) sets one time for every day.
+    setTasks(prev => prev.map(t => t.id === realAid ? { ...t, dayId: t.isDaily ? t.dayId : dayId, startTime: time, dailyTimes: undefined } : t));
 
     if (task.isDaily) {
       DAYS.forEach((d, idx) => {

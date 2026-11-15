@@ -26,6 +26,9 @@ export interface Task {
   recurId?: string;
   sortOrder: number;
   startTime?: string; // "HH:mm", 24h
+  /** Daily tasks only: a different start time on some days (dayId -> "HH:mm").
+   * Days not listed use `startTime`. Moving one day's block sets only that day. */
+  dailyTimes?: Record<string, string>;
   durationMinutes?: number;
   calendarId?: string;
   /** Created by clicking directly on the calendar grid rather than via the Task Bank/Library —
@@ -123,4 +126,10 @@ export function getDayIdForDate(date: Date, weekStart: Date): string | null {
   d.setHours(0, 0, 0, 0);
   const diffDays = Math.round((d.getTime() - start.getTime()) / 86_400_000);
   return DAY_INDEX_TO_ID[diffDays] ?? null;
+}
+
+/** Start time of a task on a given day — a daily task can have its own time per day. */
+export function timeOnDay(t: Pick<Task, 'isDaily' | 'startTime' | 'dailyTimes'>, dayId: string): string | undefined {
+  if (!t.startTime) return undefined;
+  return (t.isDaily && t.dailyTimes?.[dayId]) || t.startTime;
 }
