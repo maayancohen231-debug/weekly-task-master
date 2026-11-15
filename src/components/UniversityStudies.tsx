@@ -254,9 +254,21 @@ function weekLabel(weekISO: string, thisWeek: string): string {
   return `Week of ${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}`;
 }
 
-function itemTitle(i: TimelineItem): string {
-  if (i.kind === 'session') return i.custom ? i.label : `${COURSES[i.course].short} · Session`;
-  if (i.kind === 'assignment' && !i.custom) return `${COURSES[i.course].short} · ${i.label}`;
+/** Session number per course, in date order (earlier sessions she adds shift the count). */
+function sessionNumbers(items: TimelineItem[]): Record<string, number> {
+  const count: Partial<Record<CourseKey, number>> = {};
+  const out: Record<string, number> = {};
+  [...items].filter(i => i.kind === 'session').sort((a, b) => a.date.localeCompare(b.date))
+    .forEach(i => { count[i.course] = (count[i.course] ?? 0) + 1; out[i.id] = count[i.course]!; });
+  return out;
+}
+
+/** True when the title already carries the full course name. */
+const titleHasCourse = (i: TimelineItem) => i.kind === 'session' || (i.kind === 'assignment' && !i.custom);
+
+function itemTitle(i: TimelineItem, nums: Record<string, number> = {}): string {
+  if (i.kind === 'session') return `Session ${nums[i.id] ?? ''} · ${COURSES[i.course].name}`;
+  if (i.kind === 'assignment' && !i.custom) return `${i.label} · ${COURSES[i.course].name}`;
   return i.label;
 }
 
@@ -380,6 +392,7 @@ export function UniversityStudies() {
     [state.custom, state.hidden],
   );
 
+  const nums = useMemo(() => sessionNumbers(allItems), [allItems]);
   const assignments = allItems.filter(i => isDeliverable(i.kind));
   const sessions = allItems.filter(i => i.kind === 'session');
   const isDone = (i: TimelineItem) => !!state.itemDone[i.id];
@@ -469,11 +482,12 @@ export function UniversityStudies() {
               : item.kind === 'milestone' ? <GraduationCap size={14} className="text-muted-foreground shrink-0" />
               : <FileText size={14} className="text-muted-foreground shrink-0" />}
             <span dir="auto" className={`text-sm text-foreground ${item.kind === 'exam' ? 'font-semibold' : ''} ${done ? 'text-emerald-900 dark:text-emerald-100' : ''}`}>
-              {itemTitle(item)}
+              {itemTitle(item, nums)}
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1 text-xs text-muted-foreground">
-            <span dir="rtl">{COURSES[item.course].name}</span>
+            {!titleHasCourse(item) ? <span dir="rtl">{COURSES[item.course].name}</span>
+              : item.custom && item.kind === 'session' ? <span dir="auto">{item.label}</span> : null}
             {item.time && <span className="inline-flex items-center gap-1 tabular-nums"><Clock size={11} />{item.time}</span>}
             {isToday ? <span className="text-primary">Today</span>
               : late ? <span className="text-[hsl(var(--status-red))]">{item.kind === 'session' ? 'Not watched yet' : 'Overdue'} · {relLabel(n)}</span>
@@ -564,7 +578,7 @@ export function UniversityStudies() {
               </div>
               <div>
                 <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Next deadline</div>
-                <div className="text-sm text-foreground mt-0.5" dir="auto">{itemTitle(nextDeadline)}</div>
+                <div className="text-sm text-foreground mt-0.5" dir="auto">{itemTitle(nextDeadline, nums)}</div>
                 <div className="text-xs text-muted-foreground">{fmtDM(nextDeadline.date)} · {DAYS[parseISO(nextDeadline.date).getDay()]}</div>
               </div>
             </div>
@@ -703,6 +717,7 @@ export function UniversityStudies() {
                         <div key={s.id} className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-base ${done ? 'bg-emerald-50 dark:bg-emerald-950/30' : n === 0 ? 'bg-accent/60' : 'hover:bg-muted/40'}`}>
                           <span className="w-16 text-sm tabular-nums text-foreground">{DAYS[parseISO(s.date).getDay()]} {fmtDM(s.date)}</span>
                           <span className="flex-1 min-w-0 text-xs text-muted-foreground truncate" dir="auto">
+                            <span className="text-foreground">Session {nums[s.id]}</span>{' · '}
                             {s.custom ? s.label : n === 0 ? 'Today' : n < 0 && !done ? `Not watched yet · ${relLabel(n)}` : n > 0 ? relLabel(n) : ''}
                           </span>
                           <DoneToggle item={s} done={done} onToggle={() => toggleItem(s.id)} compact />
@@ -860,7 +875,7 @@ export function StudyDeadlinesPanel({ onOpenStudies }: { onOpenStudies: () => vo
                 {done && <Check size={13} strokeWidth={3} />}
               </button>
               <div className="flex-1 min-w-0">
-                <div className="text-[13px] text-foreground truncate" dir="auto">{COURSES[i.course].short} · {what}</div>
+                <div className="text-[13px] text-foreground" dir="auto">{what} · {COURSES[i.course].name}</div>
                 <div className={`text-[11px] ${done ? 'text-emerald-700 dark:text-emerald-300' : n <= 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{done ? 'הוגש ✓' : when}</div>
               </div>
             </div>
