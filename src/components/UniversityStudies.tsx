@@ -351,7 +351,7 @@ function DoneToggle({ item, done, onToggle, compact = false }: { item: TimelineI
       className={`inline-flex items-center justify-center gap-1.5 rounded-xl text-xs transition-base shrink-0 active:scale-[0.97]
         ${compact ? 'h-8 px-2.5' : 'h-9 px-3.5 min-w-[132px]'}
         ${done
-          ? 'bg-emerald-500 text-white shadow-sm-custom hover:bg-emerald-600'
+          ? 'bg-[hsl(152_22%_90%)] text-primary border border-[hsl(152_18%_80%)] hover:bg-[hsl(152_22%_86%)] dark:bg-[hsl(152_18%_20%)] dark:text-[hsl(152_30%_75%)] dark:border-[hsl(152_15%_28%)]'
           : 'bg-card text-foreground border border-border hover:border-primary/50 hover:bg-accent/50'}`}
     >
       {done ? <Check size={14} strokeWidth={2.5} /> : isSession ? <Eye size={14} /> : <Circle size={14} />}
@@ -469,9 +469,9 @@ export function UniversityStudies() {
       <div
         key={item.id}
         className={`group flex flex-wrap sm:flex-nowrap items-center gap-x-4 gap-y-2 px-3 sm:px-4 py-3 rounded-2xl border transition-base
-          ${done ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800/50' : isToday ? 'bg-card border-primary/40 shadow-sm-custom' : 'bg-card border-border/50 hover:shadow-sm-custom hover:border-border'}`}
+          ${done ? 'bg-[hsl(152_22%_96%)] border-[hsl(152_18%_87%)] dark:bg-[hsl(152_20%_14%)] dark:border-[hsl(152_15%_24%)]' : isToday ? 'bg-card border-primary/40 shadow-sm-custom' : 'bg-card border-border/50 hover:shadow-sm-custom hover:border-border'}`}
       >
-        <div className={`w-12 h-12 rounded-2xl flex flex-col items-center justify-center shrink-0 ${done ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200' : isToday ? 'bg-primary text-primary-foreground' : 'bg-muted/60 text-foreground'}`}>
+        <div className={`w-12 h-12 rounded-2xl flex flex-col items-center justify-center shrink-0 ${done ? 'bg-[hsl(152_22%_90%)] text-primary dark:bg-[hsl(152_18%_20%)] dark:text-[hsl(152_30%_75%)]' : isToday ? 'bg-primary text-primary-foreground' : 'bg-muted/60 text-foreground'}`}>
           <span className="text-base font-semibold leading-none tabular-nums">{d.getDate()}</span>
           <span className={`text-[10px] mt-0.5 ${isToday ? 'opacity-80' : 'text-muted-foreground'}`}>{DAYS[d.getDay()]}</span>
         </div>
@@ -481,7 +481,7 @@ export function UniversityStudies() {
               : item.kind === 'exam' ? <AlertTriangle size={14} className="text-primary shrink-0" />
               : item.kind === 'milestone' ? <GraduationCap size={14} className="text-muted-foreground shrink-0" />
               : <FileText size={14} className="text-muted-foreground shrink-0" />}
-            <span dir="auto" className={`text-sm text-foreground ${item.kind === 'exam' ? 'font-semibold' : ''} ${done ? 'text-emerald-900 dark:text-emerald-100' : ''}`}>
+            <span dir="auto" className={`text-sm text-foreground ${item.kind === 'exam' ? 'font-semibold' : ''} ${done ? 'text-foreground' : ''}`}>
               {itemTitle(item, nums)}
             </span>
           </div>
@@ -714,7 +714,7 @@ export function UniversityStudies() {
                       const done = isDone(s);
                       const n = daysUntil(s.date);
                       return (
-                        <div key={s.id} className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-base ${done ? 'bg-emerald-50 dark:bg-emerald-950/30' : n === 0 ? 'bg-accent/60' : 'hover:bg-muted/40'}`}>
+                        <div key={s.id} className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-base ${done ? 'bg-[hsl(152_22%_96%)] dark:bg-[hsl(152_20%_14%)]' : n === 0 ? 'bg-accent/60' : 'hover:bg-muted/40'}`}>
                           <span className="w-16 text-sm tabular-nums text-foreground">{DAYS[parseISO(s.date).getDay()]} {fmtDM(s.date)}</span>
                           <span className="flex-1 min-w-0 text-xs text-muted-foreground truncate" dir="auto">
                             <span className="text-foreground">Session {nums[s.id]}</span>{' · '}
@@ -866,17 +866,17 @@ export function StudyDeadlinesPanel({ onOpenStudies }: { onOpenStudies: () => vo
           const when = n < 0 ? `באיחור · ${fmtDM(i.date)}` : n === 0 ? 'היום' : n === 1 ? 'מחר' : `בעוד ${n} ימים · ${fmtDM(i.date)}`;
           const what = i.kind === 'exam' ? 'בחינה' : i.custom ? i.label : `ממ"ן ${i.label.replace('Assignment ', '')}`;
           return (
-            <div key={i.id} className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border transition-base ${done ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800/50' : n <= 0 ? 'bg-[hsl(var(--status-red-bg))] border-transparent' : 'bg-muted/40 border-transparent'}`}>
+            <div key={i.id} className={`flex items-center gap-2 px-2.5 py-2 rounded-xl border transition-base ${done ? 'bg-[hsl(152_22%_96%)] border-[hsl(152_18%_87%)] dark:bg-[hsl(152_20%_14%)] dark:border-[hsl(152_15%_24%)]' : n <= 0 ? 'bg-[hsl(var(--status-red-bg))] border-transparent' : 'bg-muted/40 border-transparent'}`}>
               <button
                 onClick={() => toggle(i.id)}
                 title={done ? 'בטל "הוגש"' : 'סמני כהוגש'}
-                className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-base ${done ? 'bg-emerald-500 border-transparent text-white' : 'border-border bg-card hover:border-emerald-500'}`}
+                className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-base ${done ? 'bg-primary border-transparent text-primary-foreground' : 'border-border bg-card hover:border-primary'}`}
               >
                 {done && <Check size={13} strokeWidth={3} />}
               </button>
               <div className="flex-1 min-w-0">
                 <div className="text-[13px] text-foreground" dir="auto">{what} · {COURSES[i.course].name}</div>
-                <div className={`text-[11px] ${done ? 'text-emerald-700 dark:text-emerald-300' : n <= 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{done ? 'הוגש ✓' : when}</div>
+                <div className={`text-[11px] ${done ? 'text-primary' : n <= 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{done ? 'הוגש ✓' : when}</div>
               </div>
             </div>
           );
