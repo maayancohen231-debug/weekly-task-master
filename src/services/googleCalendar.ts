@@ -630,6 +630,11 @@ export async function deleteCalendarEvent(calendarId: string, eventId: string): 
 // so emoji variants and exact casing don't matter.
 const CALENDAR_RULES: Array<{ calKey: string; keywords: string[] }> = [
   {
+    // Checked first: every Punct task goes to the PUNCT calendar.
+    calKey: 'punct',
+    keywords: ['punct', 'פונקט'],
+  },
+  {
     calKey: 'fitness',
     keywords: ['gym', 'workout', 'sport', 'exercise', 'fitness', 'health', 'nutrition', 'run', 'swim', 'yoga', 'pilates', 'crossfit', 'be fit'],
   },
