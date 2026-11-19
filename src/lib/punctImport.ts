@@ -648,7 +648,8 @@ const PUNCT_ENGLISH: Record<string, string> = {
 
 /** True for imported Punct blocks that are hidden in the planner (they duplicate calendar events). */
 export function isHiddenPunctTask(id: string): boolean {
-  return id.startsWith('punct_') && !(id in PUNCT_ENGLISH);
+  // Every imported block now has its twin in the PUNCT Google calendar (cleaned up 2026-11-20), so none is shown here.
+  return id.startsWith('punct_');
 }
 
 /** Gives the kept imported Punct blocks their English title. */
