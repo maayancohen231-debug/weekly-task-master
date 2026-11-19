@@ -613,3 +613,46 @@ export function importPunctTasks(): void {
     localStorage.setItem(FLAG, '1');
   } catch { /* ignore */ }
 }
+
+/**
+ * 2026-11-20 cleanup: the import above created 84 Hebrew blocks, many of them at the same time as
+ * (or doubled on top of) events that already sit in the PUNCT Google calendar. Only the blocks that
+ * have no calendar twin are kept, one per half hour, with English titles. Everything else with a
+ * `punct_` id is hidden when the week is shown (it stays in storage, so a cloud merge can't bring it back).
+ */
+const PUNCT_ENGLISH: Record<string, string> = {
+  punct_120: 'Punct: Orders and deliveries: the orders list shows only the last 20',
+  punct_123: 'Punct: Orders and deliveries: catalog total ignores the general discount',
+  punct_125: 'Punct: Orders and deliveries: document cards and receiving windows still use the old design',
+  punct_106: 'Punct: Requisitions: in the summary, the keyboard covers the notes field',
+  punct_108: 'Punct: Requisitions: requisition details have no error message and no refresh',
+  punct_109: 'Punct: Requisitions: allow choosing Shabbat or a holiday from the calendar',
+  punct_110: 'Punct: Requisitions: undo delete exists only for the last product',
+  punct_111: 'Punct: Requisitions: plural wording for "1 products" and "1 more projects"',
+  punct_112: 'Punct: Requisitions: dates follow the phone time zone, not Israel',
+  punct_114: 'Punct: Orders and deliveries: in order details, if a status change fails the loading never ends',
+  punct_116: 'Punct: Orders and deliveries: delivery matching sends an already-supplied quantity again',
+  punct_117: 'Punct: Orders and deliveries: delivery matching loses changes on refresh',
+  punct_59: 'Punct: Move Lupo to the new system',
+  punct_60: 'Punct: Set up a production environment for the new system',
+  punct_61: 'Punct: Connect the existing app to the new system',
+  punct_63: 'Punct: Wrong dates after midnight, and display fixes for the overnight switch',
+  punct_65: 'Punct: Remove "supply process"',
+  punct_69: 'Punct: Emojis',
+  punct_70: 'Punct: Product selection loads very slowly',
+  punct_74: 'Punct: Must also see a general-notes row on an order in the main page',
+  punct_77: 'Punct: Tapping "receive delivery" should sort the orders by date',
+  punct_78: 'Punct: Keep requisition and order statuses under the same name in the new interface',
+  punct_79: 'Punct: Requisitions and orders lists should be sorted chronologically, not…',
+};
+
+/** True for imported Punct blocks that are hidden in the planner (they duplicate calendar events). */
+export function isHiddenPunctTask(id: string): boolean {
+  return id.startsWith('punct_') && !(id in PUNCT_ENGLISH);
+}
+
+/** Gives the kept imported Punct blocks their English title. */
+export function withPunctEnglish<T extends { id: string; content: string }>(t: T): T {
+  const en = PUNCT_ENGLISH[t.id];
+  return en ? { ...t, content: en } : t;
+}

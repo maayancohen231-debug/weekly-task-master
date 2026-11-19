@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { isHiddenPunctTask, withPunctEnglish } from './lib/punctImport';
 import { useExclusivePopup } from '@/lib/useExclusivePopup';
 import {
   DndContext, pointerWithin, KeyboardSensor, PointerSensor,
@@ -449,7 +450,10 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
     load();
   }, [weekKey, gcalConnected, recoverGcalConnection]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const tasks = useMemo(() => storageData.tasksByWeek[weekKey] ?? [], [storageData, weekKey]);
+  const tasks = useMemo(
+    () => (storageData.tasksByWeek[weekKey] ?? []).filter(t => !isHiddenPunctTask(t.id)).map(withPunctEnglish),
+    [storageData, weekKey],
+  );
 
   // Busy events that are themselves the Google Calendar side of a task we already
   // render as a CalendarTaskBlock — drop them so the same event never shows twice.
