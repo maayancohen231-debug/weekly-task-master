@@ -446,11 +446,22 @@ export async function fetchWeekEvents(timeMinISO: string, timeMaxISO: string): P
         timeMax: timeMaxISO,
         singleEvents: 'true',
         orderBy: 'startTime',
-        maxResults: '50',
+        maxResults: '250',
       });
-      const res = await gcalFetch(`/calendars/${encodeURIComponent(cal.id)}/events?${params}`);
-      const data = await res.json();
-      const items = (data.items ?? []) as Array<{ id: string; summary?: string; recurringEventId?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string } }>;
+      // A busy week can hold more than one page of events on a single calendar
+      // (the PUNCT calendar had 80+ in the week of 15.11 and the old 50 cap cut
+      // off Thursday), so follow nextPageToken until the week is complete.
+      type RawEvent = { id: string; summary?: string; recurringEventId?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string } };
+      const items: RawEvent[] = [];
+      let pageToken: string | undefined;
+      for (let page = 0; page < 10; page++) {
+        if (pageToken) params.set('pageToken', pageToken);
+        const res = await gcalFetch(`/calendars/${encodeURIComponent(cal.id)}/events?${params}`);
+        const data = await res.json();
+        items.push(...((data.items ?? []) as RawEvent[]));
+        pageToken = data.nextPageToken;
+        if (!pageToken) break;
+      }
       return items
         .filter(ev => ev.start?.dateTime && ev.end?.dateTime) // skip all-day events
         .map((ev): GCalBusyEvent => ({
