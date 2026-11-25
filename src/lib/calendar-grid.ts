@@ -1,7 +1,7 @@
 export const GRID_START_HOUR = 6;
 export const GRID_END_HOUR = 24;
 export const SLOT_MINUTES = 30;
-export const PX_PER_HOUR = 36;
+export const PX_PER_HOUR = 80;
 export const PX_PER_MINUTE = PX_PER_HOUR / 60;
 
 export const GRID_HOURS = Array.from(
@@ -122,10 +122,9 @@ export function cascadePosition(layout: Pick<OverlapLayout, 'col' | 'totalCols' 
   }
 
   if (totalCols <= 1) return { leftPct: 0, widthPct: 100, z: 5 };
+  // Equal columns; the 2px gutter between cards is added by the grid.
   const slotPct = 100 / totalCols;
-  const leftPct = col * slotPct;
-  const widthPct = Math.max(slotPct - SIDE_BY_SIDE_GAP_PCT, slotPct * 0.7);
-  return { leftPct, widthPct, z: 5 + col };
+  return { leftPct: col * slotPct, widthPct: slotPct, z: 5 + col };
 }
 
 const GRID_TOTAL_MINUTES = (GRID_END_HOUR - GRID_START_HOUR) * 60;
@@ -193,7 +192,9 @@ export function layoutOverlaps(items: OverlapInterval[]): Map<string, OverlapLay
     const secondDuration = Math.max(0, ...clusterItems.filter(it => durationOf(it) !== maxDuration).map(durationOf));
     // Only promote a single, unambiguous, meaningfully-longer event — ties or
     // a cluster of comparably-sized events falls through to a plain equal split.
-    const usePrimary = primaryCandidates.length === 1 && maxDuration >= 60 && maxDuration >= secondDuration * 1.5;
+    // R-439 (Espresso): overlapping events always share the column side by
+    // side, never one on top of another, so the "primary" layering is off.
+    const usePrimary = false && primaryCandidates.length === 1 && maxDuration >= 60 && maxDuration >= secondDuration * 1.5;
 
     if (usePrimary) {
       const primary = primaryCandidates[0];

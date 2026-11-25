@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300..700&family=Assistant:wght@300..700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,25 +6,25 @@
 
 @layer base {
   :root {
-    --background: 40 15% 96%;
-    --foreground: 160 10% 15%;
+    --background: 34 21% 94%;
+    --foreground: 19 31% 13%;
     --card: 0 0% 100%;
-    --card-foreground: 160 10% 15%;
+    --card-foreground: 19 31% 13%;
     --popover: 0 0% 100%;
-    --popover-foreground: 160 10% 15%;
-    --primary: 152 32% 32%;
+    --popover-foreground: 19 31% 13%;
+    --primary: 16 33% 26%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 150 10% 94%;
-    --secondary-foreground: 160 10% 25%;
-    --muted: 150 8% 93%;
-    --muted-foreground: 160 5% 50%;
-    --accent: 152 30% 90%;
-    --accent-foreground: 152 35% 20%;
+    --secondary: 30 22% 92%;
+    --secondary-foreground: 16 33% 20%;
+    --muted: 32 20% 92%;
+    --muted-foreground: 20 12% 40%;
+    --accent: 30 30% 88%;
+    --accent-foreground: 16 33% 20%;
     --destructive: 0 55% 52%;
     --destructive-foreground: 0 0% 100%;
-    --border: 150 8% 90%;
-    --input: 150 8% 92%;
-    --ring: 152 32% 32%;
+    --border: 30 18% 87%;
+    --input: 30 18% 90%;
+    --ring: 16 33% 26%;
     --radius: 0.75rem;
     --status-green: 152 42% 40%;
     --status-green-bg: 152 30% 93%;
@@ -52,10 +52,10 @@
     --task-indigo-bg: 238 60% 94%;
     --task-rose: 352 75% 60%;
     --task-rose-bg: 352 65% 95%;
-    --shadow-sm: 0 1px 2px rgba(20,40,30,0.05), 0 2px 6px rgba(20,40,30,0.04);
-    --shadow-card: 0 1px 2px rgba(20,40,30,0.05), 0 8px 20px -6px rgba(20,40,30,0.1), 0 20px 40px -22px rgba(20,40,30,0.14);
-    --shadow-hover: 0 2px 4px rgba(20,40,30,0.06), 0 12px 24px -8px rgba(20,40,30,0.14), 0 24px 48px -20px rgba(20,40,30,0.16);
-    --shadow-overlay: 0 4px 8px rgba(20,40,30,0.08), 0 20px 40px -10px rgba(20,40,30,0.22);
+    --shadow-sm: 0 1px 2px rgba(43,29,23,0.05), 0 2px 6px rgba(43,29,23,0.04);
+    --shadow-card: 0 1px 2px rgba(43,29,23,0.05), 0 8px 20px -6px rgba(43,29,23,0.1), 0 20px 40px -22px rgba(43,29,23,0.14);
+    --shadow-hover: 0 2px 4px rgba(43,29,23,0.06), 0 12px 24px -8px rgba(43,29,23,0.14), 0 24px 48px -20px rgba(43,29,23,0.16);
+    --shadow-overlay: 0 4px 8px rgba(43,29,23,0.08), 0 20px 40px -10px rgba(43,29,23,0.22);
   }
 }
 
@@ -63,24 +63,20 @@
   * { @apply border-border; }
   body {
     @apply text-foreground antialiased;
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    font-family: 'Outfit', 'Assistant', system-ui, -apple-system, sans-serif;
     font-synthesis: none;
     letter-spacing: -0.01em;
-    background:
-      radial-gradient(circle at 10% 0%, hsl(152 32% 32% / 0.07), transparent 45%),
-      radial-gradient(circle at 100% 10%, hsl(152 32% 32% / 0.05), transparent 40%),
-      hsl(var(--background));
+    background: #F3F0EC;
     min-height: 100vh;
   }
 }
 
 @layer utilities {
   .app-bg {
-    background:
-      radial-gradient(circle at 10% 0%, hsl(152 32% 32% / 0.07), transparent 45%),
-      radial-gradient(circle at 100% 10%, hsl(152 32% 32% / 0.05), transparent 40%),
-      hsl(var(--background));
+    background: #F3F0EC;
   }
+  .espresso-banner { background: linear-gradient(135deg, #CBB4A0, #B99977); }
+  .line-clamp-3 { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   .shadow-card { box-shadow: var(--shadow-card); }
   .shadow-hover { box-shadow: var(--shadow-hover); }
   .shadow-overlay { box-shadow: var(--shadow-overlay); }

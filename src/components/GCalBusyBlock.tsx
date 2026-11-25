@@ -1,10 +1,10 @@
 import { useDraggable } from '@dnd-kit/core';
 import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Lock, Trash2, Pencil, CalendarClock } from 'lucide-react';
+import { Trash2, Pencil, CalendarClock } from 'lucide-react';
 import type { GCalBusyEvent, GCalCalendar } from '@/services/googleCalendar';
-import { hexToRgba } from '@/lib/task-styles';
-import { PX_PER_MINUTE as BASE_PX_PER_MINUTE, PRIMARY_TEXT_SAFE_PCT } from '@/lib/calendar-grid';
+import { categoryStyle } from '@/lib/espresso';
+import { PX_PER_MINUTE as BASE_PX_PER_MINUTE } from '@/lib/calendar-grid';
 import { usePortalPosition } from '@/lib/usePortalPosition';
 import { getDisplayTitle, getOwnOverride, setTitleOverride } from '@/lib/eventTitleOverrides';
 import { InvitePeopleButton } from './InvitePeopleButton';
@@ -60,8 +60,13 @@ export function GCalBusyBlock({
   const openRename = () => { setRenameDraft(getOwnOverride(event.title)); renamePicker.open(); };
   const saveRename = () => { setTitleOverride(event.title, renameDraft); setRenameVersion(v => v + 1); renamePicker.close(); };
   const displayHeight = resizeDeltaPx !== null ? Math.max(20, height + resizeDeltaPx) : height;
-  const compact = displayHeight < 40;
-  const color = event.calendarColor;
+  const cat = categoryStyle(event.calendarName);
+  const durationMin = (new Date(event.end).getTime() - new Date(event.start).getTime()) / 60000;
+  // Up to an hour: one line, title + start time. Longer: title, then the time range.
+  const short = durationMin <= 60 || displayHeight < 44;
+  const clampLines = durationMin <= 120 ? 'line-clamp-2' : 'line-clamp-3';
+  const startLabel = formatEventTime(event.start);
+  const rangeLabel = `${startLabel}–${formatEventTime(event.end)}`;
   // See CalendarTaskBlock: side-by-side overlapping blocks are narrower than
   // the column, so bring-to-front also expands to full width to be readable.
   const front = isFront && !isDragging && resizeDeltaPx === null;
@@ -69,7 +74,8 @@ export function GCalBusyBlock({
   // expand over the full row (or outrank the secondary's z-index) on hover
   // — the secondary sits almost entirely inside its footprint already, so
   // either would bury it with no way to reach it.
-  const expandOnFront = front && !hasOverlappingSecondary;
+  // Espresso (R-439): overlapping events stay side by side; the tooltip has the full title.
+  const expandOnFront = false && front && !hasOverlappingSecondary;
 
   const style: React.CSSProperties = isOverlay
     ? { width: 180, height: Math.max(height, 32) }
@@ -85,8 +91,9 @@ export function GCalBusyBlock({
       zIndex: isDragging || resizeDeltaPx !== null ? 100 : expandOnFront ? 50 : zIndex,
       // Near-opaque so a block with a higher z-index (an overlap secondary)
       // fully occludes whatever renders underneath instead of bleeding through.
-      backgroundColor: hexToRgba(color, 0.97),
-      borderLeft: `3px solid ${color ?? 'rgba(120,120,120,0.6)'}`,
+      backgroundColor: cat.bg,
+      color: cat.fg,
+      boxShadow: cat.ring ? `inset 0 0 0 1px ${cat.ring}` : undefined,
     };
 
   const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -120,28 +127,26 @@ export function GCalBusyBlock({
   return (
     <div
       ref={setNodeRef}
-      style={style}
       {...(isOverlay ? {} : { ...attributes, ...listeners })}
       onClick={() => setIsFront(true)}
       onMouseEnter={() => setIsFront(true)}
       onMouseLeave={() => setIsFront(false)}
-      title={`${event.calendarName}: ${displayTitle || '(No title)'}`}
-      className={`group rounded-lg border border-border/40 ring-1 ring-card px-2 py-1 overflow-hidden shadow-sm-custom ${isDragging ? '' : 'transition-base'} ${
-        isOverlay ? 'shadow-overlay scale-[1.02]' : 'cursor-grab active:cursor-grabbing hover:shadow-hover'
+      title={`${displayTitle || '(No title)'} · ${rangeLabel}`}
+      className={`group rounded-[8px] overflow-hidden ${short ? 'px-[9px] py-[5px]' : 'px-[9px] py-[7px]'} ${isDragging ? '' : 'transition-base'} ${
+        isOverlay ? 'shadow-overlay scale-[1.02]' : 'cursor-grab active:cursor-grabbing hover:brightness-[0.97]'
       }`}
+      style={{ ...style, ...(isOverlay ? { backgroundColor: cat.bg, color: cat.fg } : {}) }}
     >
-      <div
-        className="flex items-center gap-1 min-w-0"
-        // See CalendarTaskBlock: a secondary sitting on top of this block starts
-        // partway across the row, so the title needs a matching cutoff or a
-        // chunk of it gets visually chopped out by the chip instead of wrapping.
-        style={hasOverlappingSecondary && !front ? { maxWidth: `${PRIMARY_TEXT_SAFE_PCT}%` } : undefined}
-      >
-        <Lock size={9} className="shrink-0 opacity-50 text-foreground" />
-        <span className={`text-[11px] leading-tight flex-1 text-foreground/90 ${compact ? 'truncate' : 'break-words'} ${displayTitle ? '' : 'italic opacity-50'}`}>{displayTitle || '(No title)'}</span>
-      </div>
-      {!compact && (
-        <span className="text-[10px] text-foreground/70">{formatEventTime(event.start)} – {formatEventTime(event.end)}</span>
+      {short ? (
+        <p className="flex items-baseline gap-1.5 min-w-0 text-[12px] leading-[1.25]">
+          <span className={`min-w-[2.5em] truncate font-medium ${displayTitle ? '' : 'italic opacity-60'}`}>{displayTitle || '(No title)'}</span>
+          <span className="min-w-0 shrink-[6] overflow-hidden whitespace-nowrap text-[11px] opacity-75">{startLabel}</span>
+        </p>
+      ) : (
+        <>
+          <p className={`text-[12px] font-medium leading-[1.3] break-words ${clampLines} ${displayTitle ? '' : 'italic opacity-60'}`}>{displayTitle || '(No title)'}</p>
+          <p className="mt-0.5 text-[11px] opacity-75 truncate">{rangeLabel}</p>
+        </>
       )}
       {!isOverlay && (
         <div className="absolute top-0.5 right-0.5 flex items-center gap-0.5 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">

@@ -11,9 +11,10 @@ import {
 import { CalendarTaskBlock } from './CalendarTaskBlock';
 import { GCalBusyBlock } from './GCalBusyBlock';
 
-const ZOOM_KEY = 'calendarPxPerHour';
+// New key for the Espresso look (R-439): everyone starts again at 80px an hour.
+const ZOOM_KEY = 'calendarPxPerHourV2';
 const ZOOM_MIN = 20;
-const ZOOM_MAX = 84;
+const ZOOM_MAX = 120;
 const ZOOM_STEP = 8;
 
 interface DayInfo {
@@ -250,7 +251,7 @@ export function WeekCalendarGrid({
             const layout = layoutOverlaps(intervals);
 
             return (
-              <div key={day.id} className={`${days.length === 1 ? 'w-[420px] shrink-0' : 'flex-1 min-w-[104px]'} border-r border-border/30 last:border-r-0 ${isToday ? 'bg-primary/[0.03]' : ''}`}>
+              <div key={day.id} className={`${days.length === 1 ? 'w-[420px] shrink-0' : 'flex-1 min-w-[104px]'} border-r border-border/30 last:border-r-0 ${isToday ? 'bg-[#59392D]/[0.03]' : ''}`}>
                 <div className="h-[44px] flex flex-col items-center justify-center gap-0.5 border-b border-border/40 sticky top-0 z-20 bg-card">
                   <p className={`text-[10px] font-semibold tracking-wide uppercase ${isToday ? 'text-primary' : 'text-muted-foreground'}`}>
                     {day.label.slice(0, 3)}
@@ -289,11 +290,11 @@ export function WeekCalendarGrid({
                         event={ev}
                         top={top}
                         height={height}
-                        left={`${leftPct}%`}
-                        width={`${widthPct}%`}
+                        left={`calc(${leftPct}% + 2px)`}
+                        width={`calc(${widthPct}% - 4px)`}
                         zIndex={z}
                         pxPerMinute={pxPerMinute}
-                        hasOverlappingSecondary={!!(l?.isPrimary && l?.hasPrimary)}
+                        hasOverlappingSecondary={false}
                         onDelete={onDeleteBusyEvent}
                         onResize={onResizeBusyEvent}
                         calendars={calendars}
@@ -316,11 +317,11 @@ export function WeekCalendarGrid({
                         task={task}
                         top={top}
                         height={height}
-                        left={`${leftPct}%`}
-                        width={`${widthPct}%`}
+                        left={`calc(${leftPct}% + 2px)`}
+                        width={`calc(${widthPct}% - 4px)`}
                         zIndex={z}
                         pxPerMinute={pxPerMinute}
-                        hasOverlappingSecondary={!!(l?.isPrimary && l?.hasPrimary)}
+                        hasOverlappingSecondary={false}
                         onDelete={onDelete}
                         onDuplicate={onDuplicate}
                         onEdit={onEdit}

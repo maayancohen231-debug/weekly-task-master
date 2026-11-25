@@ -1,12 +1,11 @@
 import { useDraggable } from '@dnd-kit/core';
-import { Trash2, Repeat, Repeat1, Palette, Clock, CalendarClock, Copy } from 'lucide-react';
+import { Trash2, Repeat, Repeat1, CalendarClock, Copy } from 'lucide-react';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useExclusivePopup } from '@/lib/useExclusivePopup';
 import { createPortal } from 'react-dom';
 import type { Task, TaskColor } from '@/lib/task-types';
-import { TASK_COLORS } from '@/lib/task-types';
-import { colorDotClasses, colorBorderOverrides, colorBgTint, hexToRgba } from '@/lib/task-styles';
-import { PX_PER_MINUTE as BASE_PX_PER_MINUTE, timeToMinutes, minutesToTime, PRIMARY_TEXT_SAFE_PCT } from '@/lib/calendar-grid';
+import { categoryStyle } from '@/lib/espresso';
+import { PX_PER_MINUTE as BASE_PX_PER_MINUTE, timeToMinutes, minutesToTime } from '@/lib/calendar-grid';
 import { matchCalendarName, type GCalCalendar, type SyncedEventInfo } from '@/services/googleCalendar';
 import { usePortalPosition } from '@/lib/usePortalPosition';
 import { InvitePeopleButton } from './InvitePeopleButton';
@@ -52,7 +51,6 @@ export function CalendarTaskBlock({
   learnedCalendarKeywords, isSynced = false, syncedEvent, isOverlay = false, zIndex = 5, pxPerMinute = BASE_PX_PER_MINUTE,
   hasOverlappingSecondary = false, isEditing = false, onOpenEdit,
 }: CalendarTaskBlockProps) {
-  const colorPicker = usePortalPosition();
   const calendarPicker = usePortalPosition();
   const showEditForm = isEditing;
   const closeEdit = () => onOpenEdit?.(null);
@@ -88,9 +86,11 @@ export function CalendarTaskBlock({
     window.addEventListener('resize', place);
     return () => { window.removeEventListener('scroll', place, true); window.removeEventListener('resize', place); };
   }, [isEditing]);
-  const taskColor = task.color || 'none';
   const displayHeight = resizeDeltaPx !== null ? Math.max(20, height + resizeDeltaPx) : height;
-  const compact = displayHeight < 40;
+  const durationMin = task.durationMinutes ?? 30;
+  // Up to an hour: one line, title + start time. Longer: title, then the time range.
+  const short = durationMin <= 60 || displayHeight < 44;
+  const clampLines = durationMin <= 120 ? 'line-clamp-2' : 'line-clamp-3';
   // Clamped to 23:59 so a task whose stored duration already pushes past
   // midnight (old data from before resizing was capped, see handleResizeStart
   // below) can't display as "26:00" — minutesToTime has no day wraparound.
@@ -107,7 +107,8 @@ export function CalendarTaskBlock({
     if (task.calendarId) return calendars.find(c => c.id === task.calendarId);
     return matchCalendarName(task.content, calendars, learnedCalendarKeywords);
   }, [calendars, task.calendarId, task.content, learnedCalendarKeywords]);
-  const eventColor = resolvedCalendar?.backgroundColor;
+  // Espresso (R-439): fixed colour by the calendar's category, no colour picker.
+  const cat = categoryStyle(resolvedCalendar?.summary);
 
   // Side-by-side overlapping events are intentionally narrower than the
   // column (each gets an equal slice) — but that also means their text is
@@ -122,7 +123,8 @@ export function CalendarTaskBlock({
   // close to fully visible via PRIMARY_TEXT_SAFE_PCT, so this widening
   // isn't needed here anyway — it still helps genuinely equal-width
   // side-by-side splits, which is the only case it's left enabled for.
-  const expandOnFront = front && !hasOverlappingSecondary;
+  // Espresso (R-439): overlapping events stay side by side; the tooltip has the full title.
+  const expandOnFront = false && front && !hasOverlappingSecondary;
 
   const style: React.CSSProperties = isOverlay
     ? { width: 180, height: Math.max(height, 32) }
@@ -141,7 +143,9 @@ export function CalendarTaskBlock({
       // Near-opaque, not the old 0.85: a translucent background lets whatever
       // renders underneath (another block's text, in an overlap cluster) show
       // through instead of being cleanly hidden by a higher z-index.
-      ...(eventColor ? { backgroundColor: hexToRgba(eventColor, 0.97), borderLeft: `3px solid ${eventColor}` } : {}),
+      backgroundColor: cat.bg,
+      color: cat.fg,
+      boxShadow: cat.ring ? `inset 0 0 0 1px ${cat.ring}` : undefined,
     };
 
   const saveEdit = () => {
@@ -200,7 +204,7 @@ export function CalendarTaskBlock({
   return (
     <div
       ref={setRootRef}
-      style={style}
+      style={isOverlay ? { ...style, backgroundColor: cat.bg, color: cat.fg } : style}
       {...attributes}
       {...listeners}
       onClick={() => {
@@ -217,39 +221,29 @@ export function CalendarTaskBlock({
       }}
       onMouseEnter={() => setIsFront(true)}
       onMouseLeave={() => setIsFront(false)}
-      title={task.content || '(No title)'}
-      className={`group ${isOverlay ? '' : 'absolute'} rounded-lg border border-border/40 ring-1 ring-card px-2 py-1 cursor-grab active:cursor-grabbing ${isDragging ? '' : 'transition-base'} ${
-        eventColor ? '' : taskColor !== 'none' ? `${colorBgTint[taskColor]} ${colorBorderOverrides[taskColor]}` : 'bg-card border-l-[3px] border-l-border/50'
-      } ${isOverlay ? 'shadow-overlay scale-[1.02]' : 'shadow-sm-custom hover:shadow-hover'}`}
+      title={`${task.content || '(No title)'} · ${task.startTime ?? ''}${endTime ? `–${endTime}` : ''}`}
+      className={`group ${isOverlay ? '' : 'absolute'} rounded-[8px] ${short ? 'px-[9px] py-[5px]' : 'px-[9px] py-[7px]'} cursor-grab active:cursor-grabbing ${isDragging ? '' : 'transition-base'} ${isOverlay ? 'shadow-overlay scale-[1.02]' : 'hover:brightness-[0.97]'}`}
     >
       {/* h-full + overflow-hidden clips wrapped text to the block's own height —
           without it, a wrapped multi-line title on a short (30min) block spills
           past its own box and paints over whatever renders after it in the DOM. */}
       <div className="overflow-hidden h-full">
-        <div
-          className="flex items-center gap-1 min-w-0"
-          // A secondary event sitting on top of this one starts partway across
-          // the row, not at this block's own right edge — without a matching
-          // cutoff here, a long title runs straight under it and a chunk gets
-          // visually chopped out of the middle instead of wrapping around it.
-          style={hasOverlappingSecondary && !front ? { maxWidth: `${PRIMARY_TEXT_SAFE_PCT}%` } : undefined}
-        >
-          {task.isDaily && <Repeat size={9} className="shrink-0 text-foreground/50" />}
-          {task.isWeekly && <Repeat1 size={9} className="shrink-0 text-foreground/50" />}
-          {isSynced && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[hsl(var(--task-blue))]" title="Synced to Google Calendar" />}
-          {/* Status (done/in-progress/delayed) is a to-do concept — shown and
-              editable in the Task Bank/List view only. A calendar block should
-              read like a calendar event, so no strikethrough here regardless
-              of status. */}
-          <p className={`flex-1 min-w-0 text-[11px] font-medium leading-tight text-foreground/90 ${compact ? 'truncate' : 'break-words'} ${task.content ? '' : 'italic opacity-50'}`}>
-            {task.content || '(No title)'}
+        {short ? (
+          <p className="flex items-baseline gap-1.5 min-w-0 text-[12px] leading-[1.25]">
+            {task.isDaily && <Repeat size={10} className="shrink-0 self-center opacity-60" />}
+            {task.isWeekly && <Repeat1 size={10} className="shrink-0 self-center opacity-60" />}
+            <span className={`min-w-[2.5em] truncate font-medium ${task.content ? '' : 'italic opacity-60'}`}>{task.content || '(No title)'}</span>
+            <span className="min-w-0 shrink-[6] overflow-hidden whitespace-nowrap text-[11px] opacity-75">{task.startTime}</span>
           </p>
-        </div>
-        {!compact && (
-          <p className="flex items-center gap-0.5 text-[10px] text-foreground/70 mt-0.5">
-            <Clock size={9} />
-            {task.startTime}{endTime ? ` – ${endTime}` : ''}
-          </p>
+        ) : (
+          <>
+            <p className={`text-[12px] font-medium leading-[1.3] break-words ${clampLines} ${task.content ? '' : 'italic opacity-60'}`}>
+              {task.isDaily && <Repeat size={10} className="inline mr-1 -mt-0.5 opacity-60" />}
+              {task.isWeekly && <Repeat1 size={10} className="inline mr-1 -mt-0.5 opacity-60" />}
+              {task.content || '(No title)'}
+            </p>
+            <p className="mt-0.5 text-[11px] opacity-75 truncate">{task.startTime}{endTime ? `–${endTime}` : ''}</p>
+          </>
         )}
       </div>
 
@@ -257,38 +251,6 @@ export function CalendarTaskBlock({
           block's own translucent background double-composites into a visibly lighter,
           mismatched patch instead of blending in. */}
       <div className="absolute top-0.5 right-0.5 opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 flex items-center gap-0.5 bg-card/95 rounded-md shadow-sm-custom transition-base">
-        <div className="relative">
-          <button
-            ref={colorPicker.btnRef}
-            onClick={(e) => { e.stopPropagation(); colorPicker.pos ? colorPicker.close() : colorPicker.open(); }}
-            className="p-0.5 text-muted-foreground/40 hover:text-foreground/70 rounded transition-base"
-            title="Color"
-          >
-            <Palette size={11} />
-          </button>
-          {colorPicker.pos && createPortal(
-            <div
-              ref={colorPicker.popRef}
-              style={{ position: 'fixed', top: colorPicker.pos.top, right: colorPicker.pos.right }}
-              className="z-[200] bg-card rounded-xl shadow-overlay border border-border p-2 grid grid-cols-6 gap-1.5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {TASK_COLORS.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => { onSetColor(task.id, c.id); colorPicker.close(); }}
-                  className={`w-5 h-5 rounded-full border-2 transition-base ${
-                    c.id === 'none'
-                      ? 'bg-muted border-border'
-                      : `${colorDotClasses[c.id]} ${taskColor === c.id ? 'border-foreground scale-110' : 'border-transparent hover:scale-110'}`
-                  }`}
-                  title={c.label}
-                />
-              ))}
-            </div>,
-            document.body,
-          )}
-        </div>
         {calendars && calendars.length > 0 && onSetCalendar && (
           <div className="relative">
             <button

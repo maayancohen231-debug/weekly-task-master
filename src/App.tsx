@@ -7,7 +7,7 @@ import {
   defaultDropAnimationSideEffects,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { ChevronLeft, ChevronRight, GraduationCap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar, AlertTriangle, X, Eraser, Tags, Sun, ChartGantt } from 'lucide-react';
+import { ChevronLeft, ChevronRight, GraduationCap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar, AlertTriangle, X, Eraser, Tags, Sun, MoreHorizontal } from 'lucide-react';
 import { AcademicBoard } from '@/components/AcademicBoard';
 import { GoalsGantt } from '@/components/GoalsGantt';
 import {
@@ -19,12 +19,13 @@ import {
 } from '@/services/googleCalendar';
 import { WeekCalendarGrid } from '@/components/WeekCalendarGrid';
 import { TaskSidebarPanel } from '@/components/TaskSidebarPanel';
-import { QuickAddPanel, type QuickAddResult } from '@/components/QuickAddPanel';
+import { type QuickAddResult } from '@/components/QuickAddPanel';
 import { CalendarTaskBlock } from '@/components/CalendarTaskBlock';
 import { GCalBusyBlock } from '@/components/GCalBusyBlock';
-import { StatsCard } from '@/components/StatsCard';
-import { WeeklyGoals, type WeeklyGoal } from '@/components/WeeklyGoals';
-import { DailyGoalsBar } from '@/components/DailyGoalsBar';
+import { type WeeklyGoal } from '@/components/WeeklyGoals';
+import { WelcomeBanner } from '@/components/WelcomeBanner';
+import { MyCalendarsPanel } from '@/components/MyCalendarsPanel';
+import { categoryOf, useHiddenCategories } from '@/lib/espresso';
 import { DayListView } from '@/components/DayListView';
 import { CalendarKeywordsModal } from '@/components/CalendarKeywordsModal';
 import { MorningBrief, BRIEF_SHOWN_KEY, localDayKey } from '@/components/MorningBrief';
@@ -475,13 +476,15 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
     return ids;
   }, [tasks, syncedEvents]);
 
+  // "My calendars" (R-439): categories she unticked are hidden from the grid.
+  const { hidden: hiddenCategories, toggle: toggleCategory } = useHiddenCategories();
   const visibleBusyEventsByDay = useMemo(() => {
     const out: Record<string, GCalBusyEvent[]> = {};
     for (const [dayId, events] of Object.entries(busyEventsByDay)) {
-      out[dayId] = events.filter(ev => !activeSyncedGcalEventIds.has(ev.id));
+      out[dayId] = events.filter(ev => !activeSyncedGcalEventIds.has(ev.id) && !hiddenCategories.has(categoryOf(ev.calendarName)));
     }
     return out;
-  }, [busyEventsByDay, activeSyncedGcalEventIds]);
+  }, [busyEventsByDay, activeSyncedGcalEventIds, hiddenCategories]);
   // Ground-truth numbers for the status line — turns "sync succeeded but
   // came back empty" (a real, silent failure mode) into something visible
   // instead of indistinguishable from "sync never ran."
@@ -732,6 +735,23 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
     });
     return map;
   }, [tasks]);
+
+  // The grid's copy, without the categories hidden in "My calendars".
+  const gridTasksByDay = useMemo(() => {
+    if (hiddenCategories.size === 0 || calendars.length === 0) return scheduledTasksByDay;
+    const calOf = (t: Task) => (t.calendarId ? calendars.find(c => c.id === t.calendarId) : undefined)
+      ?? matchCalendarName(t.content, calendars, learnedCalendarKeywords);
+    const out: Record<string, Task[]> = {};
+    for (const [dayId, list] of Object.entries(scheduledTasksByDay)) {
+      out[dayId] = list.filter(t => !hiddenCategories.has(categoryOf(calOf(t)?.summary)));
+    }
+    return out;
+  }, [scheduledTasksByDay, hiddenCategories, calendars, learnedCalendarKeywords]);
+
+  // The "⋯" menu in the nav bar (cloud save, keywords, calendar connection, ...).
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  useExclusivePopup(moreOpen, () => setMoreOpen(false), { ref: moreRef });
 
   // ── Google Calendar auto-sync ────────────────────────────────────────────
 
@@ -1539,148 +1559,136 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
 
   return (
     <div className="h-screen app-bg text-foreground font-sans flex flex-col overflow-hidden">
-      <div className="h-1 w-full shrink-0" style={{ background: 'hsl(340 60% 80%)' }} />
+      <div className="px-4 pt-3 shrink-0">
+        <WelcomeBanner
+          name="Maayan"
+          onTasks={() => setPlannerView('list')}
+          onCalendar={() => setPlannerView('calendar')}
+          onProgress={onNavigateGantt}
+        />
+      </div>
 
-      <header className="bg-card shadow-card px-6 py-3 shrink-0">
-        <div className="flex items-center gap-6">
-          <h1 className="text-lg font-bold text-foreground tracking-tight shrink-0">
+      <header className="mx-4 mt-2.5 bg-card rounded-2xl shadow-card px-4 py-1.5 shrink-0">
+        <div className="flex items-center gap-4">
+          <h1 className="text-[22px] font-medium text-foreground tracking-tight shrink-0">
             היומן שלי
           </h1>
           {plannerView === 'day' ? (
-            <div className="flex items-center gap-2 mx-auto">
-              <button onClick={() => navigateDay(-1)} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-base">
+            <div className="flex items-center gap-1 mx-auto">
+              <button onClick={() => navigateDay(-1)} aria-label="Previous day" className="p-2.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-base">
                 <ChevronLeft size={18} />
               </button>
               <div className="text-center min-w-[170px]">
-                <p className="text-sm font-semibold text-foreground">{DAYS[selectedDayIndex]?.label}</p>
-                <p className="text-[11px] text-muted-foreground">{formatDayDate(weekStart, selectedDayIndex)}</p>
+                <p className="text-[15px] font-medium text-foreground">{DAYS[selectedDayIndex]?.label}</p>
+                <p className="text-[12px] text-muted-foreground">{formatDayDate(weekStart, selectedDayIndex)}</p>
               </div>
-              <button onClick={() => navigateDay(1)} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-base">
+              <button onClick={() => navigateDay(1)} aria-label="Next day" className="p-2.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-base">
                 <ChevronRight size={18} />
               </button>
-              {!(isCurrentWeek && selectedDayId === todayDayId) && (
-                <button onClick={goToToday} className="ml-2 px-3 py-1 text-xs font-semibold bg-primary text-primary-foreground rounded-xl transition-base hover:opacity-90">
-                  Today
-                </button>
-              )}
+              <button
+                onClick={goToToday}
+                disabled={isCurrentWeek && selectedDayId === todayDayId}
+                className="ml-2 h-9 px-4 text-[13px] font-medium bg-[#59392D] hover:bg-[#3A241C] text-white rounded-xl transition-base disabled:opacity-40 disabled:hover:bg-[#59392D]"
+              >
+                Today
+              </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2 mx-auto">
-              <button onClick={() => navigateWeek(-1)} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-base">
+            <div className="flex items-center gap-1 mx-auto">
+              <button onClick={() => navigateWeek(-1)} aria-label="Previous week" className="p-2.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-base">
                 <ChevronLeft size={18} />
               </button>
               <div className="text-center min-w-[170px]">
-                <p className="text-sm font-semibold text-foreground">{getMonthYear(weekStart)}</p>
-                <p className="text-[11px] text-muted-foreground">{getWeekRange(weekStart)}</p>
+                <p className="text-[15px] font-medium text-foreground">{getMonthYear(weekStart)}</p>
+                <p className="text-[12px] text-muted-foreground">{getWeekRange(weekStart)}</p>
               </div>
-              <button onClick={() => navigateWeek(1)} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-base">
+              <button onClick={() => navigateWeek(1)} aria-label="Next week" className="p-2.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-base">
                 <ChevronRight size={18} />
               </button>
-              {!isCurrentWeek && (
-                <button onClick={() => setWeekStart(currentWeekSunday)} className="ml-2 px-3 py-1 text-xs font-semibold bg-primary text-primary-foreground rounded-xl transition-base hover:opacity-90">
-                  Today
-                </button>
-              )}
+              <button
+                onClick={() => setWeekStart(currentWeekSunday)}
+                disabled={isCurrentWeek}
+                className="ml-2 h-9 px-4 text-[13px] font-medium bg-[#59392D] hover:bg-[#3A241C] text-white rounded-xl transition-base disabled:opacity-40 disabled:hover:bg-[#59392D]"
+              >
+                Today
+              </button>
             </div>
           )}
 
           <div className="flex items-center gap-2 shrink-0">
-            <CloudSyncButton />
+            <div className="flex items-center gap-0.5 bg-muted rounded-xl p-0.5">
+              {([
+                ['calendar', 'Week', CalendarRange, () => setPlannerView('calendar')],
+                ['day', 'Day', Calendar, switchToDayView],
+                ['list', 'List', LayoutList, () => setPlannerView('list')],
+              ] as const).map(([view, label, Icon, onClick]) => (
+                <button
+                  key={view}
+                  onClick={onClick}
+                  aria-pressed={plannerView === view}
+                  className={`flex items-center gap-1.5 h-9 px-3 text-[13px] font-medium rounded-lg transition-base ${
+                    plannerView === view ? 'bg-[#59392D] text-white' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Icon size={14} />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
             <button
               onClick={() => setShowBrief(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 dark:text-amber-300 dark:bg-amber-950/30 rounded-xl transition-base"
+              className="flex items-center gap-1.5 h-9 px-3 text-[13px] font-medium text-foreground/85 bg-muted hover:bg-accent rounded-xl transition-base"
               title="סיכום בוקר: משימות פתוחות, מיילים שמחכים לתשובה ופגישות שלא ביומן"
             >
               <Sun size={14} />
-              <span>סיכום בוקר</span>
+              <span>Morning summary</span>
             </button>
-            {scheduledInViewedWeek.length > 0 && (
-              <button
-                onClick={openCleanup}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-base"
-                title="Review and unschedule stale rollover leftovers"
-              >
-                <Eraser size={14} />
-                <span>Clean up week</span>
-              </button>
+            {isConfigured() && (
+              <span
+                className={`w-2.5 h-2.5 rounded-full shrink-0 ${gcalConnected ? (gcalSyncError ? 'bg-destructive' : 'bg-[hsl(var(--status-green))]') : 'bg-muted-foreground/30'}`}
+                role="status"
+                title={gcalConnected
+                  ? `Google Calendar: ${calendars.length} calendar${calendars.length === 1 ? '' : 's'}, ${busyEventCount} event${busyEventCount === 1 ? '' : 's'} this week`
+                  : 'Google Calendar not connected'}
+              />
             )}
-            {gcalConnected && calendars.length > 0 && (
+            <div ref={moreRef} className="relative">
               <button
-                onClick={() => setShowCalendarKeywords(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-base"
-                title="Assign specific words to a specific calendar"
+                onClick={() => setMoreOpen(o => !o)}
+                aria-label="More actions"
+                aria-expanded={moreOpen}
+                className="flex items-center justify-center w-10 h-10 rounded-xl text-foreground/70 hover:text-foreground hover:bg-muted transition-base"
               >
-                <Tags size={14} />
-                <span>Calendar Keywords</span>
+                <MoreHorizontal size={18} />
               </button>
-            )}
-            {isConfigured() ? (
-              gcalConnected ? (
-                <button
-                  onClick={handleDisconnectCalendar}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[hsl(var(--status-green))] bg-[hsl(var(--status-green-bg))] hover:bg-[hsl(var(--status-red-bg))] hover:text-destructive rounded-xl transition-base"
-                  title="Disconnect Google Calendar"
-                >
-                  <Unlink size={14} />
-                  <span>Calendar</span>
-                </button>
-              ) : (
-                <button
-                  onClick={handleConnectCalendar}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-base"
-                >
-                  <CalendarDays size={14} />
-                  <span>Connect Calendar</span>
-                </button>
-              )
-            ) : null}
-            <div className="flex items-center gap-0.5 bg-muted rounded-xl p-0.5">
-              <button
-                onClick={() => setPlannerView('calendar')}
-                title="Week view"
-                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-base ${
-                  plannerView === 'calendar' ? 'bg-card text-foreground shadow-sm-custom' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <CalendarRange size={14} />
-                <span>Week</span>
-              </button>
-              <button
-                onClick={switchToDayView}
-                title="Day view"
-                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-base ${
-                  plannerView === 'day' ? 'bg-card text-foreground shadow-sm-custom' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Calendar size={14} />
-                <span>Day</span>
-              </button>
-              <button
-                onClick={() => setPlannerView('list')}
-                title="List view"
-                className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg transition-base ${
-                  plannerView === 'list' ? 'bg-card text-foreground shadow-sm-custom' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <LayoutList size={14} />
-                <span>List</span>
-              </button>
+              {moreOpen && (
+                <div className="absolute right-0 top-full mt-1.5 z-[150] w-60 bg-card rounded-xl shadow-overlay border border-border p-1.5 flex flex-col gap-0.5">
+                  <div className="px-1.5 py-1"><CloudSyncButton /></div>
+                  {gcalConnected && calendars.length > 0 && (
+                    <button onClick={() => { setMoreOpen(false); setShowCalendarKeywords(true); }} className="flex items-center gap-2 w-full min-h-[40px] px-3 text-[13px] text-left text-foreground/85 hover:bg-muted rounded-lg transition-base">
+                      <Tags size={14} /> Calendar keywords
+                    </button>
+                  )}
+                  {isConfigured() && (gcalConnected ? (
+                    <button onClick={() => { setMoreOpen(false); handleDisconnectCalendar(); }} className="flex items-center gap-2 w-full min-h-[40px] px-3 text-[13px] text-left text-foreground/85 hover:bg-muted rounded-lg transition-base">
+                      <Unlink size={14} /> Disconnect calendar
+                    </button>
+                  ) : (
+                    <button onClick={() => { setMoreOpen(false); handleConnectCalendar(); }} className="flex items-center gap-2 w-full min-h-[40px] px-3 text-[13px] text-left text-foreground/85 hover:bg-muted rounded-lg transition-base">
+                      <CalendarDays size={14} /> Connect calendar
+                    </button>
+                  ))}
+                  {scheduledInViewedWeek.length > 0 && (
+                    <button onClick={() => { setMoreOpen(false); openCleanup(); }} className="flex items-center gap-2 w-full min-h-[40px] px-3 text-[13px] text-left text-foreground/85 hover:bg-muted rounded-lg transition-base">
+                      <Eraser size={14} /> Clean up week
+                    </button>
+                  )}
+                  <button onClick={() => { setMoreOpen(false); onNavigateAcademic(); }} className="flex items-center gap-2 w-full min-h-[40px] px-3 text-[13px] text-left text-foreground/85 hover:bg-muted rounded-lg transition-base">
+                    <GraduationCap size={14} /> University Studies
+                  </button>
+                </div>
+              )}
             </div>
-            <button
-              onClick={onNavigateAcademic}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-base"
-            >
-              <GraduationCap size={14} />
-              <span>University Studies</span>
-            </button>
-            <button
-              onClick={onNavigateGantt}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-primary bg-accent hover:bg-accent/80 rounded-xl transition-base"
-              title="לוח המטרות השנתי (תשפ״ו, תשפ״ז)"
-            >
-              <ChartGantt size={14} />
-              <span>גאנט</span>
-            </button>
           </div>
         </div>
       </header>
@@ -1721,19 +1729,13 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
         </div>
       )}
 
-      {gcalConnected && !gcalSyncError && (
-        <p className="mx-4 mt-1.5 text-[10px] text-muted-foreground/50 shrink-0">
-          Google Calendar: {calendars.length} calendar{calendars.length === 1 ? '' : 's'} found, {busyEventCount} event{busyEventCount === 1 ? '' : 's'} loaded for this week
-        </p>
-      )}
 
       <main className="flex-1 px-4 pt-4 pb-4 flex gap-3 min-h-0 overflow-hidden">
         {plannerView === 'calendar' || plannerView === 'day' ? (
           <DndContext sensors={sensors} collisionDetection={pointerWithin}
             onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-            <div className="w-[240px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2 scroll-thin">
+            <div className="w-[260px] shrink-0 flex flex-col gap-3 overflow-y-auto pb-2 scroll-thin">
               <StudyDeadlinesPanel onOpenStudies={onNavigateAcademic} />
-              <QuickAddPanel onSubmit={quickAddFromChat} disabled={!gcalConnected} />
               <TaskSidebarPanel
                 tasks={bankTasksForPanel}
                 onAddTask={addUnscheduledTask}
@@ -1748,24 +1750,16 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
                 onSetLibraryColor={setLibraryTaskColor}
                 onSetLibraryDuration={setLibraryTaskDuration}
               />
-              <StatsCard tasks={trackedTasks} progress={progress} />
-              <WeeklyGoals goals={goals} tasks={trackedTasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
+              <MyCalendarsPanel hidden={hiddenCategories} onToggle={toggleCategory} />
             </div>
 
             <div className="flex-1 flex flex-col gap-3 min-h-0 min-w-0">
-              <DailyGoalsBar
-                days={DAYS.map((d, i) => ({ id: d.id, label: d.label, date: formatDayDate(weekStart, i) }))}
-                goals={dailyGoals}
-                onAddGoal={addDailyGoal}
-                onToggleGoalDay={toggleDailyGoalDay}
-                onDeleteGoal={deleteDailyGoal}
-              />
               <WeekCalendarGrid
                 days={plannerView === 'day'
                   ? [{ id: selectedDayId, label: DAYS[selectedDayIndex]?.label ?? '', date: formatDayDate(weekStart, selectedDayIndex) }]
                   : DAYS.map((d, i) => ({ id: d.id, label: d.label, date: formatDayDate(weekStart, i) }))}
                 todayDayId={todayDayId}
-                scheduledTasksByDay={scheduledTasksByDay}
+                scheduledTasksByDay={gridTasksByDay}
                 busyEventsByDay={visibleBusyEventsByDay}
                 syncedTaskIds={syncedTaskIds}
                 syncedEvents={syncedEvents}
@@ -1814,13 +1808,8 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
             onDeleteLibraryTask={deleteLibraryTask}
             onSetLibraryColor={setLibraryTaskColor}
             onSetLibraryDuration={setLibraryTaskDuration}
-            sidebarBefore={<><StudyDeadlinesPanel onOpenStudies={onNavigateAcademic} /><QuickAddPanel onSubmit={quickAddFromChat} disabled={!gcalConnected} /></>}
-            sidebarAfter={
-              <>
-                <StatsCard tasks={trackedTasks} progress={progress} />
-                <WeeklyGoals goals={goals} tasks={trackedTasks} onAddGoal={addGoal} onDeleteGoal={deleteGoal} />
-              </>
-            }
+            sidebarBefore={<StudyDeadlinesPanel onOpenStudies={onNavigateAcademic} />}
+            sidebarAfter={<MyCalendarsPanel hidden={hiddenCategories} onToggle={toggleCategory} />}
           />
         )}
       </main>
