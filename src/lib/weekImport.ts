@@ -15,8 +15,8 @@ import {
  * `resyncWeekImport` can PATCH the same Google events (title, time, calendar) instead
  * of leaving Hebrew orphans, and adds wk1122_90..163 for the rest. */
 const FLAG_V1 = 'week-import-2026-11-22';
-const FLAG = 'week-import-2026-11-22-v4';
-const RESYNC_FLAG = 'week-import-2026-11-22-v4-resync';
+const FLAG = 'week-import-2026-11-22-v5';
+const RESYNC_FLAG = 'week-import-2026-11-22-v5-resync';
 const STORAGE_KEY = 'weekly-planner-data';
 export const WEEK_IMPORT_WEEK = '2026-11-22';
 const WEEK = WEEK_IMPORT_WEEK;
@@ -24,6 +24,16 @@ export const WEEK_IMPORT_ID_PREFIX = 'wk1122_';
 const AROMA_ID = 'wk1122_aroma';
 const AROMA_TITLE = 'Aromatherapy workshop, Tel Aviv';
 const DAY_IDS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+/** Friday 27.11 as she planned it (27.11): conference, family, ongoing tasks 14:00-18:30
+ * (the request blocks), then the Italy trip until 23:00. Request blocks outside 14:00-18:30
+ * that day are dropped (and their Google events deleted by the resync). */
+const FRIDAY: { id: string; content: string; startTime: string; durationMinutes: number }[] = [
+  { id: 'wk1122_fri_conf', content: 'Duvdevan // Fellows conference at Adanim', startTime: '08:00', durationMinutes: 240 },
+  { id: 'wk1122_fri_family', content: 'Family // At Shmaritush', startTime: '12:00', durationMinutes: 120 },
+  { id: 'wk1122_fri_italy', content: 'Trips // Italy trip planning', startTime: '18:30', durationMinutes: 270 },
+];
+const dropped = (dayId: string, start: string) => dayId === 'fri' && (start < '14:00' || start >= '18:30');
 
 /** v1 titles by id: the Google events still carrying them get renamed or deleted. */
 const OLD_TITLES: Record<string, string> = {
@@ -329,7 +339,9 @@ export function importWeekTasks(): void {
 
     const others = week.filter(t => !t.id.startsWith(WEEK_IMPORT_ID_PREFIX));
     let order = others.length;
-    const blocks: Task[] = BLOCKS.map(([dayId, startTime, project, titles], i) => ({
+    const blocks: Task[] = BLOCKS.map(([dayId, startTime, project, titles], i) => ({ i, dayId, startTime, project, titles }))
+      .filter(b => !dropped(b.dayId, b.startTime))
+      .map(({ i, dayId, startTime, project, titles }) => ({
       id: `${WEEK_IMPORT_ID_PREFIX}${i}`,
       content: `${project} // ${titles}`,
       status: 'green',
@@ -341,6 +353,7 @@ export function importWeekTasks(): void {
       durationMinutes: 30,
       ...(calByProject[project] ? { calendarId: calByProject[project] } : {}),
     }));
+    for (const f of FRIDAY) blocks.push({ ...f, status: 'none', color: 'none', dayId: 'fri', isDaily: false, sortOrder: order++ });
     blocks.push({
       id: AROMA_ID, content: AROMA_TITLE, status: 'none', color: 'none', dayId: 'thu',
       isDaily: false, sortOrder: order++, startTime: '19:00', durationMinutes: 120,
@@ -409,6 +422,15 @@ export async function resyncWeekImport(calendars: GCalCalendar[], learned: Recor
       if (isGone(err)) delete synced[t.id];
       else { failed = true; console.warn('[weekImport] update failed', t.id, err); }
     }
+  });
+  saveAllSyncedEvents(synced);
+
+  // 1b. Blocks dropped from the import (Friday 27.11 replan): delete their events.
+  const live = new Set(tasks.map(t => t.id));
+  await inBatches(Object.keys(synced).filter(id => id.startsWith(WEEK_IMPORT_ID_PREFIX) && !live.has(id)), 4, async id => {
+    const info = synced[id];
+    try { await deleteCalendarEvent(info.calendarId, info.eventId); delete synced[id]; }
+    catch (err) { if (isGone(err)) delete synced[id]; else { failed = true; console.warn('[weekImport] delete dropped failed', id, err); } }
   });
   saveAllSyncedEvents(synced);
 
