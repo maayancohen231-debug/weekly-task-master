@@ -7,7 +7,7 @@ import {
 } from '@/services/googleCalendar';
 
 /** The board requests she finished in the week of 22.11.2026 (R-820), as half-hour
- * blocks filling every day Sun–Fri from 08:00 to 22:00, one or two requests a block,
+ * blocks filling every day Sun–Fri from 08:00 to 23:00, one or two requests a block,
  * all in English, plus Thursday's aromatherapy workshop 19:00–21:00.
  *
  * v1 (9941bb2) put 90 Hebrew blocks (wk1122_0..89 + wk1122_aroma) 08:30–16:00 and the
@@ -15,8 +15,8 @@ import {
  * `resyncWeekImport` can PATCH the same Google events (title, time, calendar) instead
  * of leaving Hebrew orphans, and adds wk1122_90..163 for the rest. */
 const FLAG_V1 = 'week-import-2026-11-22';
-const FLAG = 'week-import-2026-11-22-v2';
-const RESYNC_FLAG = 'week-import-2026-11-22-v2-resync';
+const FLAG = 'week-import-2026-11-22-v3';
+const RESYNC_FLAG = 'week-import-2026-11-22-v3-resync';
 const STORAGE_KEY = 'weekly-planner-data';
 export const WEEK_IMPORT_WEEK = '2026-11-22';
 const WEEK = WEEK_IMPORT_WEEK;
@@ -149,8 +149,8 @@ const BLOCKS: [string, string, string, string][] = [
  ["sun","19:30","Punct","Bug #272: project name above supplier in orders · Reply to Noam: Lupo new, others old"],
  ["sun","20:00","Punct","Noam can't edit products in PR75341 (old system) · Punct team in the app: Lupo/Towers new, rest old"],
  ["sun","20:30","Punct","Check if Boaron and Rom Gevess ordered today · Bug #273: moderator can't see prices"],
- ["sun","21:00","Punct","Bug #275: can't pick a supplier in the app · New app look only for moved companies"],
- ["sun","21:30","Punct","Shared QA checklist for Lupo and Towers · Connect the new system to Limon's Priority"],
+ ["sun","21:00","Punct","Bug #275: can't pick a supplier in the app"],
+ ["sun","21:30","Punct","Shared QA checklist for Lupo and Towers"],
  ["mon","08:00","Punct","PDF report for managers: move status · Lupo and Towers still on old system: block and move"],
  ["mon","08:30","Punct","Project filter: active only · Full end-to-end Punct code review"],
  ["mon","09:00","Punct","Kapayim: why delivery receipt failed (order 97062) · QA prompt to run after every company move"],
@@ -176,9 +176,9 @@ const BLOCKS: [string, string, string, string][] = [
  ["mon","19:00","Punct","Bug #590: amount column missing for Amit · App: \"All companies\" for the Punct team"],
  ["mon","19:30","Punct","Test 54 failed: PDF with and without prices · Requisitions"],
  ["mon","20:00","Punct","New requisition · Catalog"],
- ["mon","20:30","Punct","Bug: user can't open a requisition · Boaron hit the integration call limit"],
+ ["mon","20:30","Punct","Bug: user can't open a requisition"],
  ["mon","21:00","Punct","Rom Gevess: Priority sync skips 6 documents"],
- ["mon","21:30","Duvdevan","Encrypt all remaining sensitive fields · Prepare the system for the pen test"],
+ ["mon","21:30","Duvdevan","Encrypt all remaining sensitive fields"],
  ["tue","08:00","Duvdevan","Before pen test: blocking, rate limits, security.txt · Nightly encrypted database backup"],
  ["tue","08:30","Duvdevan","Idle logout after 2 hours, Israel-only access · Security scan before Cybiz audit"],
  ["tue","09:00","Punct","Check company settings and catalog in moved companies · Requisition screen: product row crashes on hover"],
@@ -205,8 +205,8 @@ const BLOCKS: [string, string, string, string][] = [
  ["tue","19:30","Punct","Bug #604: product type SKU in variant column"],
  ["tue","20:00","Duvdevan","Add a new location from the event picker · Memorial: set date manually or by Gregorian"],
  ["tue","20:30","Duvdevan","\"No fellow\" option when opening an event · New population type: veteran teams"],
- ["tue","21:00","Duvdevan","Fallen soldier file: family first, media tab · Memorial event / family project option"],
- ["tue","21:30","Duvdevan","Separate permissions table per department · Link memorial events to a fallen soldier or all families"],
+ ["tue","21:00","Duvdevan","Fallen soldier file: family first, media tab"],
+ ["tue","21:30","Duvdevan","Separate permissions table per department"],
  ["wed","08:00","Duvdevan","Person card: team in one place"],
  ["wed","08:30","Punct","Bug #605: moderator can't see inactive products · Product card: 2-line description, unit price compare"],
  ["wed","09:00","Punct","Bugs #601, #602: delivery qty, project search"],
@@ -232,8 +232,8 @@ const BLOCKS: [string, string, string, string][] = [
  ["wed","19:00","Duvdevan","Menu: \"Event production\" for Resilience · Main calendar: name, cycle and session number"],
  ["wed","19:30","Duvdevan","Edit event: location and details not editable · Event: \"No fellow\" in fellow picker"],
  ["wed","20:00","Duvdevan","Fallen: no full bereaved family list · Fallen: link an existing event"],
- ["wed","20:30","Duvdevan","Fallen: no KPIs, upcoming memorials on home · Fallen: edit memorial date with pencil"],
- ["wed","21:00","Duvdevan","\"In memory of\" only on memorial events · Team file: hide empty mentors and bereaved team"],
+ ["wed","20:30","Duvdevan","Fallen: no KPIs, upcoming memorials on home"],
+ ["wed","21:00","Duvdevan","\"In memory of\" only on memorial events"],
  ["wed","21:30","Duvdevan","Team files: search is broken"],
  ["thu","08:00","Punct","Punct \"Bugs & requests\" page for the team · Bugs & requests: your 4 items"],
  ["thu","08:30","Punct","Bugs & requests: 4 catalog items · Product card company SKUs: one row per company"],
@@ -254,10 +254,10 @@ const BLOCKS: [string, string, string, string][] = [
  ["thu","16:00","Punct","App chat: \"I need to order cement\" shows products · Fix UX audit findings step by step"],
  ["thu","16:30","Punct","Requisition screen: 9 items from bugs page · New requisition and order windows: 7 items"],
  ["thu","17:00","Punct","Catalog: consistent names, add product screen · Log chat usage"],
- ["thu","17:30","Punct","Connect AI key to the live site chat · Requisition and order lists: 15 items"],
- ["thu","18:00","Punct","Structura: final Priority status after delivery · Find order or requisition by last digits"],
- ["thu","18:30","Punct","Delivery note photo: auto-read the number · Company area: \"Company rules\" opens elsewhere"],
- ["thu","21:00","Punct","Requisition and order: all product columns visible · New-system company wrongly marked \"old\""],
+ ["thu","17:30","Punct","Connect AI key to the live site chat"],
+ ["thu","18:00","Punct","Structura: final Priority status after delivery"],
+ ["thu","18:30","Punct","Delivery note photo: auto-read the number"],
+ ["thu","21:00","Punct","Requisition and order: all product columns visible"],
  ["thu","21:30","Punct","New user type: tech support team"],
  ["fri","08:00","Punct","Marketing video: from site to purchasing and supplier"],
  ["fri","08:30","Punct","Self password reset not working"],
@@ -286,7 +286,19 @@ const BLOCKS: [string, string, string, string][] = [
  ["fri","20:00","Duvdevan","Run all tests after today's changes"],
  ["fri","20:30","Duvdevan","Recognition process: \"worsening filed\" stage"],
  ["fri","21:00","Duvdevan","Emergency contacts: bottom, one default, add more"],
- ["fri","21:30","Duvdevan","Intensive setting: details, not a call log"]
+ ["fri","21:30","Duvdevan","Intensive setting: details, not a call log"],
+ ["sun","22:00","Punct","New app look only for moved companies"],
+ ["sun","22:30","Punct","Connect the new system to Limon's Priority"],
+ ["mon","22:00","Punct","Boaron hit the integration call limit"],
+ ["mon","22:30","Duvdevan","Prepare the system for the pen test"],
+ ["tue","22:00","Duvdevan","Memorial event / family project option"],
+ ["tue","22:30","Duvdevan","Link memorial events to a fallen soldier or all families"],
+ ["wed","22:00","Duvdevan","Fallen: edit memorial date with pencil"],
+ ["wed","22:30","Duvdevan","Team file: hide empty mentors and bereaved team"],
+ ["thu","22:00","Punct","Company area: \"Company rules\" opens elsewhere"],
+ ["thu","22:30","Punct","New-system company wrongly marked \"old\""],
+ ["fri","22:00","Punct","Requisition and order lists: 15 items"],
+ ["fri","22:30","Punct","Find order or requisition by last digits"],
 ];
 
 function weekStartDate(): Date {
