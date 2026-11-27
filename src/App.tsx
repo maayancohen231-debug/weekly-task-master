@@ -7,7 +7,7 @@ import {
   defaultDropAnimationSideEffects,
 } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
-import { ChevronLeft, ChevronRight, GraduationCap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar, AlertTriangle, X, Eraser, Tags, Sun, MoreHorizontal } from 'lucide-react';
+import { ChevronLeft, ChevronRight, GraduationCap, CalendarDays, Unlink, LayoutList, CalendarRange, Calendar, AlertTriangle, X, Eraser, Tags, Sun, MoreHorizontal, RotateCw } from 'lucide-react';
 import { AcademicBoard } from '@/components/AcademicBoard';
 import { GoalsGantt } from '@/components/GoalsGantt';
 import {
@@ -1689,6 +1689,15 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
                   : 'Google Calendar not connected'}
               />
             )}
+            {/* R-825: round refresh button, reloads the app (picks up a new version and re-syncs). */}
+            <button
+              onClick={() => window.location.reload()}
+              aria-label="Refresh"
+              title="Refresh"
+              className="flex items-center justify-center w-10 h-10 rounded-full bg-muted text-foreground/80 hover:text-foreground hover:bg-accent transition-base"
+            >
+              <RotateCw size={17} />
+            </button>
             <div ref={moreRef} className="relative">
               <button
                 onClick={() => setMoreOpen(o => !o)}

@@ -15,8 +15,8 @@ import {
  * `resyncWeekImport` can PATCH the same Google events (title, time, calendar) instead
  * of leaving Hebrew orphans, and adds wk1122_90..163 for the rest. */
 const FLAG_V1 = 'week-import-2026-11-22';
-const FLAG = 'week-import-2026-11-22-v3';
-const RESYNC_FLAG = 'week-import-2026-11-22-v3-resync';
+const FLAG = 'week-import-2026-11-22-v4';
+const RESYNC_FLAG = 'week-import-2026-11-22-v4-resync';
 const STORAGE_KEY = 'weekly-planner-data';
 export const WEEK_IMPORT_WEEK = '2026-11-22';
 const WEEK = WEEK_IMPORT_WEEK;
@@ -331,7 +331,7 @@ export function importWeekTasks(): void {
     let order = others.length;
     const blocks: Task[] = BLOCKS.map(([dayId, startTime, project, titles], i) => ({
       id: `${WEEK_IMPORT_ID_PREFIX}${i}`,
-      content: `${project}: ${titles}`,
+      content: `${project} // ${titles}`,
       status: 'green',
       color: 'none',
       dayId,
@@ -387,7 +387,7 @@ export async function resyncWeekImport(calendars: GCalCalendar[], learned: Recor
   const synced: Record<string, SyncedEventInfo> = loadSyncedEvents();
   for (const t of tasks) {
     if (t.calendarId || t.id === AROMA_ID) continue;
-    const cal = resolveLearnedOrRuleMatch(t.content.slice(0, t.content.indexOf(':')), calendars, learned);
+    const cal = resolveLearnedOrRuleMatch(t.content.split(' // ')[0], calendars, learned);
     if (cal) calendarFor[t.id] = cal.id;
   }
   let failed = false;
