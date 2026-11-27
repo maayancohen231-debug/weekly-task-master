@@ -128,6 +128,11 @@ export function loadSyncedEvents(): Record<string, SyncedEventInfo> {
   catch { return {}; }
 }
 
+/** Replaces the whole task -> event map (used by the R-820 week import resync). */
+export function saveAllSyncedEvents(data: Record<string, SyncedEventInfo>): void {
+  localStorage.setItem(SYNC_KEY, JSON.stringify(data));
+}
+
 export function saveSyncedEvent(taskId: string, info: SyncedEventInfo): void {
   const data = loadSyncedEvents();
   data[taskId] = info;
@@ -436,7 +441,7 @@ export async function fetchCalendars(): Promise<GCalCalendar[]> {
  * events on any calendar the user had toggled off for their own viewing,
  * which is exactly the kind of gap this planner exists to prevent.
  */
-export async function fetchWeekEvents(timeMinISO: string, timeMaxISO: string): Promise<GCalBusyEvent[]> {
+export async function fetchWeekEvents(timeMinISO: string, timeMaxISO: string, opts: { translate?: boolean } = {}): Promise<GCalBusyEvent[]> {
   const calendars = await fetchCalendars();
 
   const results = await Promise.allSettled(
@@ -501,7 +506,7 @@ export async function fetchWeekEvents(timeMinISO: string, timeMaxISO: string): P
   // calendars, so they read the same as titles created inside the app.
   // translateText already no-ops (and stays fast) for a title that isn't
   // Hebrew, so this is safe to run over every event unconditionally.
-  await Promise.all(
+  if (opts.translate !== false) await Promise.all(
     events.map(async (ev) => {
       try {
         const translated = await translateText(ev.title);

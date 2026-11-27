@@ -32,6 +32,7 @@ import { MorningBrief, BRIEF_SHOWN_KEY, localDayKey } from '@/components/Morning
 import { StudyDeadlinesPanel } from '@/components/UniversityStudies';
 import { CloudSyncButton } from '@/components/CloudSyncButton';
 import { onCloudApplied, startCloudSync } from '@/services/cloudSync';
+import { WEEK_IMPORT_ID_PREFIX, WEEK_IMPORT_WEEK, resyncWeekImport, weekImportResyncPending } from '@/lib/weekImport';
 import { translateText } from '@/lib/translate';
 import { parseQuickEventText } from '@/lib/parseQuickEvent';
 import { parseSlotId, BANK_ID, startAfterEndsIn, timeToMinutes } from '@/lib/calendar-grid';
@@ -398,6 +399,7 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
 
   // Pull existing Google Calendar events for the visible week, bucketed by day.
   const busyFetchRef = useRef(0);
+  const [busyReloadTick, setBusyReloadTick] = useState(0);
   useEffect(() => {
     if (!gcalConnected) { setBusyEventsByDay({}); return; }
     const requestId = ++busyFetchRef.current;
@@ -449,7 +451,7 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
       }
     };
     load();
-  }, [weekKey, gcalConnected, recoverGcalConnection]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [weekKey, gcalConnected, recoverGcalConnection, busyReloadTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const tasks = useMemo(
     () => (storageData.tasksByWeek[weekKey] ?? []).filter(t => !isHiddenPunctTask(t.id)).map(withPunctEnglish),
@@ -857,27 +859,62 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
   // events, never deletes, so a transient computation glitch here can't wipe
   // a real synced event (deletion stays explicit: deleteTask / toggleDaily /
   // drag-to-bank).
+  // R-820: the 22.11 week import was rebuilt (English, full days). Until its
+  // Google events are updated in place (see resyncWeekImport), the backfill
+  // below leaves those blocks alone so it can't create duplicates.
+  const [weekResyncPending, setWeekResyncPending] = useState(() => weekImportResyncPending());
+  const weekResyncStartedRef = useRef(false);
+  useEffect(() => {
+    if (!weekResyncPending || !gcalConnected || calendars.length === 0 || weekResyncStartedRef.current) return;
+    weekResyncStartedRef.current = true;
+    resyncWeekImport(calendars, learnedCalendarKeywords)
+      .then(calendarFor => {
+        if (Object.keys(calendarFor).length === 0) return;
+        setStorageData(prev => ({
+          ...prev,
+          tasksByWeek: {
+            ...prev.tasksByWeek,
+            [WEEK_IMPORT_WEEK]: (prev.tasksByWeek[WEEK_IMPORT_WEEK] ?? []).map(t =>
+              calendarFor[t.id] && !t.calendarId ? { ...t, calendarId: calendarFor[t.id] } : t),
+          },
+        }));
+      })
+      .catch(err => console.warn('[App] week import resync failed', err))
+      .finally(() => {
+        setSyncedEvents(loadSyncedEvents());
+        setWeekResyncPending(false);
+        setBusyReloadTick(n => n + 1);
+      });
+  }, [weekResyncPending, gcalConnected, calendars, learnedCalendarKeywords]);
+
   useEffect(() => {
     if (!gcalConnected || calendars.length === 0) return;
+    // Also check the stored map: a create that finished after this render but
+    // before this (deferred) effect ran is already saved there, while
+    // `syncedEvents` here is still the older copy. Without this, a big batch
+    // of creates (e.g. an import) made a second, duplicate event for some.
+    const stored = loadSyncedEvents();
+    const has = (key: string) => !!syncedEvents[key] || !!stored[key] || pendingSyncRef.current.has(key);
     tasks.forEach(t => {
       if (!t.startTime) return;
+      if (weekResyncPending && t.id.startsWith(WEEK_IMPORT_ID_PREFIX)) return;
       const duration = t.durationMinutes ?? 30;
       if (t.isDaily) {
         DAYS.forEach((d, idx) => {
           const key = `${t.id}_${d.id}`;
-          if (!syncedEvents[key] && !pendingSyncRef.current.has(key)) {
+          if (!has(key)) {
             syncTaskToCalendar(key, t.content, idx, timeOnDay(t, d.id)!, duration, t.calendarId);
           }
         });
       } else {
         const key = t.id;
-        if (!syncedEvents[key] && !pendingSyncRef.current.has(key)) {
+        if (!has(key)) {
           const dayIndex = DAYS.findIndex(d => d.id === t.dayId);
           syncTaskToCalendar(key, t.content, dayIndex, t.startTime!, duration, t.calendarId);
         }
       }
     });
-  }, [tasks, gcalConnected, calendars, syncedEvents, syncTaskToCalendar]);
+  }, [tasks, gcalConnected, calendars, syncedEvents, syncTaskToCalendar, weekResyncPending]);
 
   // The List view moves a task to another day by changing its dayId only
   // (it knows nothing about Google Calendar), so a scheduled task dragged to
