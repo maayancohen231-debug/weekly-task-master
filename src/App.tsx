@@ -1608,7 +1608,7 @@ function Planner({ onNavigateAcademic, onNavigateGantt }: { onNavigateAcademic: 
       <header className="mx-4 mt-2.5 bg-card rounded-2xl shadow-card px-4 py-1.5 shrink-0">
         <div className="flex items-center gap-4">
           <h1 className="text-[22px] font-medium text-foreground tracking-tight shrink-0">
-            היומן שלי
+            My Planner
           </h1>
           {plannerView === 'day' ? (
             <div className="flex items-center gap-1 mx-auto">
